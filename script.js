@@ -180,13 +180,13 @@ function hideBookshelf(){bookshelf.classList.add('hide')}
 function handleFile(f){
   if(!f)return;
   var ext=f.name.split('.').pop().toLowerCase();
-  if(['txt','md','markdown','epub'].indexOf(ext)<0){alert('暂不支持此格式');return}
+  if(['txt','md','markdown','epub'].indexOf(ext)<0){toast('暂不支持此格式');return}
   if(ext==='epub'){handleEPUB(f);return}
   S.fileName=f.name;S.fileSize=f.size;S.fileType=(ext==='md'||ext==='markdown')?'md':'txt';
   showLoading('正在读取文件...');
   var rd=new FileReader();
   rd.onprogress=function(e){if(e.lengthComputable)showLoading('正在读取... '+fmtSize(e.loaded)+' / '+fmtSize(e.total))};
-  rd.onerror=function(){alert('文件读取失败');hideLoading()};
+  rd.onerror=function(){toast('文件读取失败');hideLoading()};
   rd.onload=function(e){
     showLoading('正在解析内容...');
     var buf=e.target.result;
@@ -196,7 +196,7 @@ function handleFile(f){
         var cv=generateCoverDataUrl(f.name);
         dbSave(S.fileName,{text:S.rawText,type:S.fileType,size:S.fileSize,cover:cv},function(){addToLib(S.fileName,S.fileSize,S.fileType,cv)});
         processContent();
-      }catch(err){console.error(err);alert('文件解析失败: '+err.message);hideLoading()}
+      }catch(err){console.error(err);toast('文件解析失败: '+err.message);hideLoading()}
     },PROC_DELAY);
   };
   rd.readAsArrayBuffer(f);
@@ -206,11 +206,11 @@ function handleEPUB(f){
   showLoading('正在解析 EPUB...');
   var rd=new FileReader();
   rd.onprogress=function(e){if(e.lengthComputable)showLoading('正在读取... '+fmtSize(e.loaded)+' / '+fmtSize(e.total))};
-  rd.onerror=function(){alert('文件读取失败');hideLoading()};
+  rd.onerror=function(){toast('文件读取失败');hideLoading()};
   rd.onload=function(e){
     showLoading('正在解析章节...');
     parseEPUB(e.target.result,function(result,err){
-      if(err||!result){hideLoading();alert('EPUB 解析失败: '+(err||'未知错误'));return}
+      if(err||!result){hideLoading();toast('EPUB 解析失败: '+(err||'未知错误'));return}
       S.rawText='';
       S.chapters=result.chapters.map(function(ch){return{title:ch.title||'',content:ch.text||'',html:ch.html||''}});
       var cv=result.cover||generateCoverDataUrl(f.name);
@@ -270,8 +270,8 @@ function deleteBook(name){
   var t=name.replace(/\.[^.]+$/,'');
   if(!confirm('确定要移除《'+t+'》？'))return;
   dbDelete(name,function(){});removeFromLib(name);
-  try{var p=JSON.parse(localStorage.getItem('jd_p')||'{}');delete p[name];localStorage.setItem('jd_p',JSON.stringify(p))}catch(e){}
-  try{localStorage.removeItem('jd_bm_'+name)}catch(e){}
+  try{var p=JSON.parse(localStorage.getItem('jd_p')||'{}');delete p[name];localStorage.setItem('jd_p',JSON.stringify(p))}catch(e){console.warn('清除进度失败',e)}
+  try{localStorage.removeItem('jd_bm_'+name)}catch(e){console.warn('清除书签失败',e)}
   renderBookshelf();toast('已从书架移除');
 }
 function processContent(){

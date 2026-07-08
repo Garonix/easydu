@@ -165,3 +165,7 @@ mark.shl.act{background:rgba(212,160,88,.7);outline:2px solid var(--accent);bord
   .bs-grid{grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:14px;padding:16px}
   #sidebar{width:260px}#settings{width:260px}
 }
+@media(min-width:1024px)and(orientation:landscape){
+  :root{--reader-max:780px}
+  #content-inner{padding:60px 40px 100px;font-size:18px}
+}
