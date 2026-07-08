@@ -1,4 +1,4 @@
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
 --bg:#f6f1e7;--surface:#faf7ef;--text:#3a3028;--text-sec:#908476;
 --accent:#b07830;--accent-soft:rgba(176,120,48,.12);
@@ -36,7 +36,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);-webkit
 .bs-empty{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;color:var(--text-sec);text-align:center}
 .bs-empty p{margin-top:14px;font-size:1rem}
 .bs-empty .bs-empty-hint{font-size:.85rem;margin-top:4px;opacity:.7}
-.bs-card{border-radius:10px;overflow:hidden;cursor:pointer;background:var(--surface);border:1px solid var(--border);transition:transform .25s,box-shadow .25s;position:relative;opacity:0;animation:cardIn .4s ease forwards}
+.bs-card{border-radius:10px;overflow:hidden;cursor:pointer;background:var(--surface);border:1px solid var(--border);transition:transform .25s,box-shadow .25s;position:relative;opacity:0;animation:cardIn .4s ease forwards;-webkit-tap-highlight-color:transparent}
 .bs-card:hover{transform:translateY(-4px);box-shadow:0 8px 28px rgba(0,0,0,.1)}
 @keyframes cardIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 .bs-card-cover{aspect-ratio:5/7;position:relative;overflow:hidden;background:var(--border)}
@@ -56,7 +56,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);-webkit
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ===== Reader ===== */
-#reader{position:fixed;inset:0;display:none;flex-direction:column;z-index:15}
+#reader{position:fixed;inset:0;display:none;flex-direction:column;z-index:15;background:var(--bg)}
 #reader.active{display:flex}
 #toolbar{position:absolute;top:0;left:0;right:0;height:54px;z-index:100;display:flex;align-items:center;padding:0 12px;gap:4px;background:var(--toolbar-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);transform:translateY(-100%);opacity:0;transition:transform .3s,opacity .3s,left .3s cubic-bezier(.4,0,.2,1)}
 #toolbar.visible{transform:translateY(0);opacity:1}
