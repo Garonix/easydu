@@ -164,12 +164,12 @@ function renderBookshelf(){
     var dt=new Date(b.ts);var ds=(dt.getMonth()+1)+'/'+dt.getDate();
     var meta=fmtSize(b.s||0)+' · '+ds+(pct?' · '+pct+'%':'');
     var tpBadge=b.tp==='epub'?'EPUB':b.tp==='md'?'MD':'TXT';
-    return '<div class="bs-card" style="animation-delay:'+i*.04+'s" onclick="J.openBook('+q(b.n)+')">' +
+    return '<div class="bs-card" data-name="'+esc(b.n)+'" style="animation-delay:'+i*.04+'s">' +
       '<div class="bs-card-cover"><img class="bs-card-img" src="'+cv+'" alt="" loading="lazy">' +
       '<div class="bs-card-pbar"><div class="bs-card-pfill" style="width:'+pct+'%"></div></div></div>' +
       '<div class="bs-card-info"><div class="bs-card-name" title="'+esc(b.n)+'">'+esc(title)+'</div>' +
       '<div class="bs-card-meta">'+meta+'</div></div>' +
-      '<button class="bs-card-del" onclick="event.stopPropagation();J.delBook('+q(b.n)+')" title="删除"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';
+      '<button class="bs-card-del" title="删除"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';
   }).join('');
 }
 function getBookPct(n){try{var p=JSON.parse(localStorage.getItem('jd_p')||'{}')[n];return p&&p.pct?p.pct:0}catch(e){return 0}}
@@ -406,6 +406,7 @@ function setupSettingsEvents(){
   updateCacheStats();
 }
 function setupEvents(){
+  on($('bs-main'),'click',function(e){var c=e.target.closest('.bs-card');if(!c)return;var n=c.dataset.name;if(!n)return;if(e.target.closest('.bs-card-del')){deleteBook(n)}else{loadBookFromShelf(n)}});
   on($('bs-import'),'click',function(){fileInput.click()});
   on(fileInput,'change',function(e){handleFile(e.target.files[0]);fileInput.value=''});
   on($('bs-theme-btn'),'click',toggleTheme);
@@ -437,7 +438,7 @@ function togglePanel(n,force){if(n==='sidebar'){var o=force!==undefined?force:!s
 /* ===== Helpers ===== */
 function showLoading(m){if(loading){loading.classList.add('show');if(loadingText)loadingText.textContent=m||'加载中...'}}
 function hideLoading(){if(loading)loading.classList.remove('show')}
-function showReader(){hideBookshelf();hideLoading();buildTOC();if(reader)reader.classList.add('active');if(tbTitle)tbTitle.textContent=S.fileName.replace(/\.[^.]+$/,'');startReadingTimer()}
+function showReader(){hideBookshelf();hideLoading();buildTOC();if(reader)reader.classList.add('active');if(tbTitle)tbTitle.textContent=S.fileName.replace(/\.[^.]+$/,'');var bm=$('btn-bm');if(bm){bm.classList.remove('on');var sv=bm.querySelector('svg');if(sv)sv.setAttribute('fill','none')}startReadingTimer()}
 function fmtSize(b){return b<1024?b+'B':b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(1)+'MB'}
 function toast(msg){if(!toastEl)return;toastEl.textContent=msg;toastEl.classList.add('show');clearTimeout(toastEl._t);toastEl._t=setTimeout(function(){toastEl.classList.remove('show')},TOAST_MS)}
 function debounce(fn,ms){var t;return function(){var a=arguments,c=this;clearTimeout(t);t=setTimeout(function(){fn.apply(c,a)},ms)}}
@@ -453,8 +454,6 @@ function clearCache(){if(!confirm('确定清除所有书籍缓存？需要重新
 function toggleTheme(){S.theme=S.theme==='light'?'dark':'light';applySettings();saveSettings()}
 function closeAllPanels(){togglePanel('sidebar',false);togglePanel('settings',false);if(searchBar.classList.contains('open'))closeSearch()}
 function goToChapter(idx){if(idx<0||idx>=S.chapters.length)return;togglePanel('sidebar',false);toolbar.classList.remove('visible');initSeamless(idx,0)}
-function q(s){return'"'+s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\\/g,'\\\\')+'"'}
-
-window.J={openBook:loadBookFromShelf,delBook:deleteBook,go:function(ch,off){goToChapter(ch);if(off)requestAnimationFrame(function(){var bl=contentInner.querySelector('[data-idx="'+ch+'"]');if(bl)contentEl.scrollTop=bl.offsetTop+off})},delBm:deleteBookmark};
+window.J={go:function(ch,off){goToChapter(ch);if(off)requestAnimationFrame(function(){var bl=contentInner.querySelector('[data-idx="'+ch+'"]');if(bl)contentEl.scrollTop=bl.offsetTop+off})},delBm:deleteBookmark};
 
 })();
