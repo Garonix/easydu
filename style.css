@@ -163,6 +163,11 @@ mark.shl.act{background:rgba(212,160,88,.7);outline:2px solid var(--accent);bord
 .stats-group{border-top:1px solid var(--border);padding-top:8px}
 .stats-row{display:flex;justify-content:space-between;font-size:.85rem;padding:4px 0;color:var(--text)}
 .stats-row span:last-child{color:var(--text-sec)}
+.cache-group{border-top:1px solid var(--border);padding-top:8px}
+.cache-info{font-size:.82rem;color:var(--text-sec);margin-bottom:10px}
+.cache-clear-btn{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-sec);cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .2s}
+.cache-clear-btn:hover{border-color:#c33;color:#c33;background:rgba(204,51,51,.08)}
+.tb-time{font-size:.75rem;color:var(--text-sec);white-space:nowrap;padding:0 4px}
 
 @media(max-width:600px){
   #content-inner{padding:40px 18px 80px;font-size:16px}
