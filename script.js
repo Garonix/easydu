@@ -244,7 +244,7 @@ function resizeCover(dataUrl,mw,mh,cb){
   img.src=dataUrl;
 }
 function decodeBuffer(buf){
-  try{var t=new TextDecoder('utf-8').decode(buf);if((t.match(/�/g)||[]).length<10)return t;return new TextDecoder('gbk').decode(buf)}
+  try{return new TextDecoder('utf-8',{fatal:true}).decode(buf)}
   catch(e){try{return new TextDecoder('gbk').decode(buf)}catch(e2){return new TextDecoder('utf-8',{fatal:false}).decode(buf)}}
 }
 function loadBookFromShelf(name){
@@ -289,6 +289,7 @@ function splitTxt(t){
   mk.sort(function(a,b){return a.i-b.i});var d=[mk[0]];
   for(var i=1;i<mk.length;i++){if(mk[i].i>d[d.length-1].i+10)d.push(mk[i])}
   var ch=[];
+  if(d[0].i>0){var pre=t.slice(0,d[0].i).trim();if(pre)ch.push({title:'前言',content:pre})}
   for(var j=0;j<d.length;j++){var le=t.indexOf('\n',d[j].i);le=le<0?t.length:le+1;var e2=j+1<d.length?d[j+1].i:t.length;ch.push({title:d[j].t,content:t.slice(le,e2).trim()})}
   return ch;
 }
@@ -297,7 +298,8 @@ function splitMD(md){var lines=md.split('\n'),ch=[],cur=null;for(var i=0;i<lines
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function sanitizeHTML(html){
   var ALLOWED_TAGS=/^(p|br|hr|h[1-6]|ul|ol|li|blockquote|pre|code|em|strong|b|i|u|s|a|span|div|table|thead|tbody|tr|td|th|img|sub|sup|small|mark|dl|dt|dd|figure|figcaption|section|article|header|footer|nav|abbr|cite|dfn|kbd|samp|var|time|ruby|rt|rp|wbr)$/i;
-  var ALLOWED_ATTRS=/^(href|src|alt|title|class|id|colspan|rowspan|width|height|datetime|cite|dir|lang|title|role|aria-[\w-]+)$/i;
+  var ALLOWED_ATTRS=/^(href|src|alt|title|class|id|colspan|rowspan|width|height|datetime|cite|dir|lang|role|aria-[\w-]+)$/i;
+  var UNSAFE_SCHEMES=/^\s*(?:javascript|vbscript):/i;
   var doc=new DOMParser().parseFromString(html,'text/html');
   var walker=document.createTreeWalker(doc.body,NodeFilter.SHOW_ELEMENT);
   var toRemove=[];
@@ -308,10 +310,10 @@ function sanitizeHTML(html){
     for(var i=0;i<attrs.length;i++){
       var name=attrs[i].name.toLowerCase();
       if(!ALLOWED_ATTRS.test(name)){el.removeAttribute(attrs[i].name);continue}
-      if((name==='href'||name==='src')&&/^\s*javascript:/i.test(attrs[i].value)){el.removeAttribute(attrs[i].name)}
+      if(UNSAFE_SCHEMES.test(attrs[i].value)||(name==='href'&&/^\s*data:/i.test(attrs[i].value))){el.removeAttribute(attrs[i].name)}
     }
   }
-  for(var j=0;j<toRemove.length;j++){
+  for(var j=toRemove.length-1;j>=0;j--){
     var parent=toRemove[j].parentNode;if(!parent)continue;
     while(toRemove[j].firstChild)parent.insertBefore(toRemove[j].firstChild,toRemove[j]);
     parent.removeChild(toRemove[j]);
