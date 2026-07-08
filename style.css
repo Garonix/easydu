@@ -5,7 +5,7 @@
 --border:#e4ddd0;--toolbar-bg:rgba(246,241,231,.92);
 --scrollbar-thumb:rgba(0,0,0,.1);--scrollbar-thumb-hover:rgba(0,0,0,.22);
 --reader-max:680px;
---font-body:'LXGW WenKai','Noto Serif SC','Songti SC',Georgia,serif;
+--font-body:'LXGW WenKai TC','LXGW WenKai','Noto Serif SC','Songti SC',Georgia,serif;
 }
 [data-theme="dark"]{
 --bg:#1a1a1e;--surface:#222226;--text:#dcd6cc;--text-sec:#6e6963;

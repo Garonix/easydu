@@ -47,7 +47,7 @@ function generateCoverDataUrl(name){
     ctx.strokeStyle='rgba(255,255,255,.1)';ctx.lineWidth=1;ctx.strokeRect(12,12,136,200);
     ctx.fillStyle='rgba(255,255,255,.88)';ctx.textAlign='center';ctx.textBaseline='middle';
     var fs=title.length<=4?28:title.length<=8?22:title.length<=14?17:13;
-    ctx.font='bold '+fs+'px "LXGW WenKai",serif';
+    ctx.font='bold '+fs+'px "LXGW WenKai TC","LXGW WenKai","Noto Serif SC",serif';
     var lines=[],line='';
     for(var j=0;j<title.length;j++){var t=line+title[j];if(ctx.measureText(t).width>120){lines.push(line);line=title[j]}else line=t}
     if(line)lines.push(line);
