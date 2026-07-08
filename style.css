@@ -58,13 +58,13 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);-webkit
 /* ===== Reader ===== */
 #reader{position:fixed;inset:0;display:none;flex-direction:column;z-index:15}
 #reader.active{display:flex}
-#toolbar{position:absolute;top:0;left:0;right:0;height:54px;z-index:100;display:flex;align-items:center;padding:0 12px;gap:4px;background:var(--toolbar-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);transform:translateY(-100%);opacity:0;transition:transform .3s,opacity .3s}
+#toolbar{position:absolute;top:0;left:0;right:0;height:54px;z-index:100;display:flex;align-items:center;padding:0 12px;gap:4px;background:var(--toolbar-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);transform:translateY(-100%);opacity:0;transition:transform .3s,opacity .3s,left .3s cubic-bezier(.4,0,.2,1)}
 #toolbar.visible{transform:translateY(0);opacity:1}
 .tb-btn{width:36px;height:36px;border:none;border-radius:10px;background:transparent;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;flex-shrink:0}
 .tb-btn:hover{background:var(--accent-soft)}
 .tb-btn.on{color:var(--accent)}
 .tb-title{flex:1;text-align:center;font-size:.85rem;color:var(--text-sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
-#search-bar{position:absolute;top:54px;left:0;right:0;z-index:99;background:var(--toolbar-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:10px 16px;transform:translateY(-100%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s}
+#search-bar{position:absolute;top:54px;left:0;right:0;z-index:99;background:var(--toolbar-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:10px 16px;transform:translateY(-100%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s,left .3s cubic-bezier(.4,0,.2,1)}
 #search-bar.open{transform:translateY(0);opacity:1;pointer-events:auto}
 .search-row{display:flex;align-items:center;gap:8px;max-width:var(--reader-max);margin:0 auto}
 #search-input{flex:1;padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:inherit;font-size:.9rem;outline:none}
