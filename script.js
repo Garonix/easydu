@@ -356,7 +356,7 @@ function trimChapters(){
   contentEl.scrollTop=Math.max(0,Math.min(contentEl.scrollHeight-contentEl.clientHeight,oT-(oH-contentEl.scrollHeight)));
 }
 function updateReadingChapter(){var bs=contentInner.querySelectorAll('.ch-block');var cr=contentEl.getBoundingClientRect();var threshold=cr.top+contentEl.clientHeight*.33;var c=S.currentChapter;for(var i=0;i<bs.length;i++){var rect=bs[i].getBoundingClientRect();if(rect.top>threshold)break;c=+bs[i].dataset.idx}if(c!==S.currentChapter){S.currentChapter=c;highlightToc();updateBmBtn()}}
-var svTimer;function afterScroll(){if(isAdjusting)return;updateReadingChapter();updateProgress();checkInfinite();clearTimeout(svTimer);svTimer=setTimeout(saveProg,SAVE_DELAY)}
+var svTimer;function afterScroll(){if(isAdjusting)return;updateReadingChapter();updateProgress();checkInfinite();updateBmBtn();clearTimeout(svTimer);svTimer=setTimeout(saveProg,SAVE_DELAY)}
 
 /* ===== Progress ===== */
 function getProgressData(){if(_progData&&_progData.len===S.chapters.length)return _progData;var total=0,cum=[0];for(var i=0;i<S.chapters.length;i++){total+=Math.max(1,(S.chapters[i].content||'').length);cum.push(total)}_progData={cum:cum,total:total,len:S.chapters.length};return _progData}
