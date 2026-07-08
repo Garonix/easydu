@@ -160,6 +160,10 @@ mark.shl.act{background:rgba(212,160,88,.7);outline:2px solid var(--accent);bord
 #toast{position:fixed;bottom:50px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--text);color:var(--bg);padding:10px 24px;border-radius:8px;font-size:.85rem;opacity:0;transition:all .3s;z-index:200;pointer-events:none}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+.stats-group{border-top:1px solid var(--border);padding-top:8px}
+.stats-row{display:flex;justify-content:space-between;font-size:.85rem;padding:4px 0;color:var(--text)}
+.stats-row span:last-child{color:var(--text-sec)}
+
 @media(max-width:600px){
   #content-inner{padding:40px 18px 80px;font-size:16px}
   .bs-grid{grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:14px;padding:16px}
