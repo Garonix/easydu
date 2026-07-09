@@ -13,6 +13,11 @@ var tbTitle=$('tb-title'),tbTime=$('tb-time'),searchBar=$('search-bar'),searchIn
 var progressFill=$('progress-fill'),progressThumb=$('progress-thumb'),progressTip=$('progress-tip'),progressTrack=$('progress-track');
 var toastEl=$('toast'),fileInput=$('file-input');
 var firstLoaded=-1,lastLoaded=-1,isAdjusting=false,_progData=null,_rs=0,_rt=null,_rtSec=null,_touchTap=false;
+var importDropdownMenu=$('import-dropdown-menu'),webdavModal=$('webdav-modal'),webdavModalTitle=$('webdav-modal-title');
+var webdavStepUrl=$('webdav-step-url'),webdavStepAuth=$('webdav-step-auth'),webdavStepBrowse=$('webdav-step-browse');
+var webdavUrlInput=$('webdav-url'),webdavUsernameInput=$('webdav-username'),webdavPasswordInput=$('webdav-password'),webdavRememberCheckbox=$('webdav-remember');
+var webdavBreadcrumb=$('webdav-breadcrumb'),webdavFileList=$('webdav-file-list');
+var webdavBaseUrl='',webdavAuth='',webdavCurrentPath='/',webdavCredentials={url:'',username:'',password:'',remember:true};
 var coverHues=[25,42,120,175,210,260,330,15,55,150,200,280,350,80,300,10];
 var CH_HEADING_GAP=10,BM_OFFSET_TOL=200,SCROLL_BOUND=800,PARA_MAX=4000,SAVE_DELAY=800,PROC_DELAY=30,TOAST_MS=1800,SEARCH_DELAY=200,SNIP_MAX=100,TRIM_WIN=3;
 
@@ -541,10 +546,358 @@ function setupSettingsEvents(){
   on($('cache-clear'),'click',clearCache);
   updateCacheStats();
 }
+
+/* ===== WebDAV ===== */
+function loadWebDAVCredentials(){
+  try{
+    var saved=JSON.parse(localStorage.getItem('jd_webdav')||'null');
+    if(saved){
+      webdavCredentials=saved;
+      if(saved.url)webdavUrlInput.value=saved.url;
+      if(saved.username)webdavUsernameInput.value=saved.username;
+      if(saved.password)webdavPasswordInput.value=saved.password;
+      if(saved.remember!==undefined)webdavRememberCheckbox.checked=saved.remember;
+    }
+  }catch(e){}
+}
+function saveWebDAVCredentials(){
+  if(webdavRememberCheckbox.checked){
+    webdavCredentials={
+      url:webdavUrlInput.value.trim(),
+      username:webdavUsernameInput.value,
+      password:webdavPasswordInput.value,
+      remember:true
+    };
+  }else{
+    webdavCredentials={url:webdavUrlInput.value.trim(),username:'',password:'',remember:false};
+  }
+  try{localStorage.setItem('jd_webdav',JSON.stringify(webdavCredentials))}catch(e){}
+}
+function showWebDAVModal(){
+  loadWebDAVCredentials();
+  webdavStepUrl.style.display='';
+  webdavStepAuth.style.display='none';
+  webdavStepBrowse.style.display='none';
+  webdavModalTitle.textContent='远程上传';
+  webdavModal.classList.add('show');
+}
+function hideWebDAVModal(){webdavModal.classList.remove('show')}
+function webdavMakeAuth(username,password){return'Basic '+btoa(unescape(encodeURIComponent(username+':'+password)))}
+function webdavBuildHeaders(){
+  var headers={'Authorization':webdavAuth};
+  return headers;
+}
+function webdavFetch(path,options){
+  var url=webdavBaseUrl.replace(/\/$/,'')+'/'+path.replace(/^\//,'');
+  options=options||{};
+  options.headers=Object.assign({},options.headers||{},webdavBuildHeaders());
+  return fetch(url,options);
+}
+function webdavPropfind(path,depth){
+  depth=depth||'1';
+  var body='<?xml version="1.0" encoding="utf-8"?><D:propfind xmlns:D="DAV:"><D:allprop/></D:propfind>';
+  return webdavFetch(path,{
+    method:'PROPFIND',
+    headers:Object.assign({'Content-Type':'application/xml','Depth':depth},webdavBuildHeaders()),
+    body:body
+  });
+}
+function webdavParseResponse(xml){
+  var parser=new DOMParser();
+  var doc=parser.parseFromString(xml,'application/xml');
+  var responses=doc.querySelectorAll('response');
+  var items=[];
+  for(var i=0;i<responses.length;i++){
+    var resp=responses[i];
+    var href=resp.querySelector('href');
+    if(!href)continue;
+    var hrefText=decodeURIComponent(href.textContent);
+    var propstat=resp.querySelector('propstat');
+    if(!propstat)continue;
+    var prop=propstat.querySelector('prop');
+    if(!prop)continue;
+    var resourcetype=prop.querySelector('resourcetype');
+    var isFolder=resourcetype?resourcetype.querySelector('collection')!==null:false;
+    var getcontentlength=prop.querySelector('getcontentlength');
+    var size=getcontentlength?parseInt(getcontentlength.textContent)||0:0;
+    var getlastmodified=prop.querySelector('getlastmodified');
+    var modified=getlastmodified?getlastmodified.textContent:'';
+    items.push({href:hrefText,name:hrefText.split('/').filter(Boolean).pop(),isFolder:isFolder,size:size,modified:modified});
+  }
+  return items;
+}
+function webdavIsSupported(ext){
+  if(!ext)return false;
+  ext=ext.toLowerCase();
+  return['txt','md','markdown','epub'].indexOf(ext)>=0;
+}
+function webdavGetExt(filename){return filename.split('.').pop().toLowerCase()}
+function webdavListDir(path){
+  webdavCurrentPath=path||'/';
+  webdavFileList.innerHTML='<div class="webdav-loading">加载中...</div>';
+  webdavBreadcrumb.innerHTML='';
+  renderBreadcrumb();
+  webdavPropfind(path,'1').then(function(resp){
+    if(!resp.ok){
+      if(resp.status===401){
+        showWebDAVStep('auth');
+        toast('认证失败，请输入用户名密码');
+        return;
+      }
+      throw new Error('请求失败: '+resp.status);
+    }
+    return resp.text();
+  }).then(function(xml){
+    if(!xml)return;
+    var items=webdavParseResponse(xml);
+    var currentItems=items.filter(function(item){
+      if(item.href===path||item.href===path.replace(/\/$/,'')||item.href===(path.endsWith('/')?path.slice(0,-1):path+'/'))return false;
+      var itemPath=item.href.replace(webdavBaseUrl.replace(/https?:\/\/[^\/]+/,''),'');
+      var currentPathClean=path.replace(/\/$/,'');
+      return itemPath.startsWith(currentPathClean+'/')&&!itemPath.slice(currentPathClean.length+1).includes('/');
+    });
+    currentItems.sort(function(a,b){
+      if(a.isFolder!==b.isFolder)return a.isFolder?-1:1;
+      return a.name.localeCompare(b.name);
+    });
+    renderFileList(currentItems);
+  }).catch(function(err){
+    webdavFileList.innerHTML='<div class="webdav-empty">加载失败: '+err.message+'</div>';
+  });
+}
+function renderBreadcrumb(){
+  webdavBreadcrumb.innerHTML='';
+  var parts=webdavCurrentPath.split('/').filter(Boolean);
+  var homeItem=document.createElement('span');
+  homeItem.className='webdav-breadcrumb-item'+(parts.length===0?' current':'');
+  homeItem.textContent='根目录';
+  homeItem.onclick=function(){if(parts.length>0)webdavListDir('/')};
+  webdavBreadcrumb.appendChild(homeItem);
+  var path='';
+  for(var i=0;i<parts.length;i++){
+    path+='/'+parts[i];
+    var sep=document.createElement('span');
+    sep.textContent='›';
+    sep.style.color='var(--text-sec)';
+    webdavBreadcrumb.appendChild(sep);
+    var item=document.createElement('span');
+    item.className='webdav-breadcrumb-item'+(i===parts.length-1?' current':'');
+    item.textContent=parts[i];
+    (function(p){item.onclick=function(){webdavListDir(p)}})(path);
+    webdavBreadcrumb.appendChild(item);
+  }
+}
+function renderFileList(items){
+  if(!items.length){
+    webdavFileList.innerHTML='<div class="webdav-empty">此目录为空</div>';
+    return;
+  }
+  webdavFileList.innerHTML='';
+  items.forEach(function(item){
+    var div=document.createElement('div');
+    div.className='webdav-file-item';
+    if(item.isFolder)div.classList.add('folder');
+    var icon=document.createElement('div');
+    icon.className='webdav-file-icon'+(item.isFolder?' folder':'');
+    icon.innerHTML=item.isFolder?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>';
+    var name=document.createElement('div');
+    name.className='webdav-file-name';
+    name.textContent=item.name;
+    var size=document.createElement('div');
+    size.className='webdav-file-size';
+    if(item.isFolder){
+      size.textContent='文件夹';
+    }else{
+      size.textContent=fmtSize(item.size);
+    }
+    div.appendChild(icon);
+    div.appendChild(name);
+    div.appendChild(size);
+    if(item.isFolder){
+      div.onclick=function(){webdavListDir(item.href.replace(webdavBaseUrl.replace(/https?:\/\/[^\/]+/,''),''))};
+    }else{
+      var ext=webdavGetExt(item.name);
+      if(webdavIsSupported(ext)){
+        div.onclick=function(){webdavDownloadFile(item)};
+      }else{
+        div.style.opacity='.5';
+        div.style.cursor='not-allowed';
+        size.textContent='不支持的格式';
+      }
+    }
+    webdavFileList.appendChild(div);
+  });
+}
+function webdavDownloadFile(item){
+  hideWebDAVModal();
+  showLoading('正在下载 '+item.name+'...');
+  var path=item.href.replace(webdavBaseUrl.replace(/https?:\/\/[^\/]+/,''),'');
+  webdavFetch(path).then(function(resp){
+    if(!resp.ok)throw new Error('下载失败: '+resp.status);
+    return resp.arrayBuffer();
+  }).then(function(buf){
+    var ext=webdavGetExt(item.name);
+    var fileType=(ext==='md'||ext==='markdown')?'md':ext;
+    S.fileName=item.name;
+    S.fileSize=item.size;
+    S.fileType=fileType;
+    showLoading('正在解析内容...');
+    setTimeout(function(){
+      try{
+        if(ext==='epub'){
+          parseEPUB(buf,function(result,err){
+            if(err||!result){hideLoading();toast('EPUB 解析失败: '+(err||'未知错误'));return}
+            S.rawText='';
+            S.chapters=result.chapters.map(function(ch){return{title:ch.title||'',content:ch.text||'',html:ch.html||''}});
+            S.epubCSS=result.epubCSS||'';
+            S.epubTitle=result.title||item.name.replace(/\.[^.]+$/,'');
+            S.toc=result.toc||null;
+            var cv=result.cover||generateCoverDataUrl(item.name);
+            var saveData={chapters:result.chapters,type:'epub',size:item.size,cover:null,epubCSS:S.epubCSS,toc:S.toc,epubTitle:S.epubTitle};
+            var doSave=function(c){saveData.cover=c;dbSave(item.name,saveData,function(){addToLib(item.name,item.size,'epub',c)});afterParseEPUB()};
+            if(cv&&cv.indexOf('data:image')===0&&cv.length>5000){resizeCover(cv,160,224,function(small){doSave(small||cv)})}
+            else{doSave(cv)}
+          });
+        }else{
+          S.rawText=decodeBuffer(buf);
+          var cv=generateCoverDataUrl(item.name);
+          dbSave(S.fileName,{text:S.rawText,type:S.fileType,size:S.fileSize,cover:cv},function(){addToLib(S.fileName,S.fileSize,S.fileType,cv)});
+          processContent();
+        }
+      }catch(err){console.error(err);toast('文件解析失败: '+err.message);hideLoading()}
+    },PROC_DELAY);
+  }).catch(function(err){
+    hideLoading();
+    toast('下载失败: '+err.message);
+  });
+}
+function showWebDAVStep(step){
+  webdavStepUrl.style.display='none';
+  webdavStepAuth.style.display='none';
+  webdavStepBrowse.style.display='none';
+  if(step==='url'){
+    webdavStepUrl.style.display='';
+    webdavModalTitle.textContent='远程上传';
+  }else if(step==='auth'){
+    webdavStepAuth.style.display='';
+    webdavModalTitle.textContent='账号验证';
+  }else if(step==='browse'){
+    webdavStepBrowse.style.display='';
+    webdavModalTitle.textContent='WebDAV - '+webdavUrlInput.value.trim();
+  }
+}
+function webdavConnect(){
+  var url=webdavUrlInput.value.trim();
+  if(!url){toast('请输入服务器地址');return}
+  if(!url.match(/^https?:\/\//)){url='http://'+url;webdavUrlInput.value=url}
+  var urlObj=new URL(url);
+  var basePath=urlObj.pathname.replace(/\/$/,'')||'/';
+  webdavBaseUrl=urlObj.origin;
+  webdavCurrentPath=basePath;
+  saveWebDAVCredentials();
+  showLoading('正在连接...');
+  webdavPropfind(basePath,'0').then(function(resp){
+    hideLoading();
+    if(resp.status===401){
+      if(webdavCredentials.username&&webdavCredentials.password){
+        webdavAuth=webdavMakeAuth(webdavCredentials.username,webdavCredentials.password);
+        webdavTestAuth();
+      }else{
+        showWebDAVStep('auth');
+      }
+      return;
+    }
+    if(!resp.ok)throw new Error('连接失败: '+resp.status);
+    showWebDAVStep('browse');
+    webdavListDir(basePath);
+  }).catch(function(err){
+    hideLoading();
+    toast('无法连接到服务器，请检查地址是否正确');
+  });
+}
+function webdavTestAuth(){
+  showLoading('正在验证...');
+  webdavPropfind(webdavCurrentPath,'0').then(function(resp){
+    hideLoading();
+    if(resp.status===401){
+      toast('账号或密码错误');
+      showWebDAVStep('auth');
+      return;
+    }
+    if(!resp.ok)throw new Error('验证失败: '+resp.status);
+    saveWebDAVCredentials();
+    showWebDAVStep('browse');
+    webdavListDir(webdavCurrentPath);
+  }).catch(function(err){
+    hideLoading();
+    toast('验证失败: '+err.message);
+    showWebDAVStep('auth');
+  });
+}
+function webdavLogin(){
+  var username=webdavUsernameInput.value;
+  var password=webdavPasswordInput.value;
+  if(!username){toast('请输入用户名');return}
+  webdavAuth=webdavMakeAuth(username,password);
+  showLoading('正在验证...');
+  webdavPropfind(webdavCurrentPath,'0').then(function(resp){
+    hideLoading();
+    if(resp.status===401){
+      toast('账号或密码错误');
+      return;
+    }
+    if(!resp.ok)throw new Error('验证失败: '+resp.status);
+    saveWebDAVCredentials();
+    showWebDAVStep('browse');
+    webdavListDir(webdavCurrentPath);
+  }).catch(function(err){
+    hideLoading();
+    toast('验证失败: '+err.message);
+  });
+}
 function setupEvents(){
   on($('bs-main'),'click',function(e){var c=e.target.closest('.bs-card');if(!c)return;var n=c.dataset.name;if(!n)return;if(e.target.closest('.bs-card-del')){deleteBook(n)}else{loadBookFromShelf(n)}});
-  on($('bs-import'),'click',function(){fileInput.click()});
-  on(fileInput,'change',function(e){handleFile(e.target.files[0]);fileInput.value=''});
+  on($('bs-import'),'click',function(e){
+    e.stopPropagation();
+    importDropdownMenu.classList.toggle('show');
+  });
+  on($('import-local'),'click',function(e){
+    e.stopPropagation();
+    importDropdownMenu.classList.remove('show');
+    fileInput.click();
+  });
+  on($('import-webdav'),'click',function(e){
+    e.stopPropagation();
+    importDropdownMenu.classList.remove('show');
+    showWebDAVModal();
+  });
+  on(document,'mousedown',function(e){
+    if(!e.target.closest('.import-dropdown')){
+      importDropdownMenu.classList.remove('show');
+    }
+  });
+  on(document,'mousedown',function(e){
+    if(webdavModal.classList.contains('show')&&!e.target.closest('.webdav-modal-content')){
+      hideWebDAVModal();
+    }
+  });
+  on($('webdav-modal-close'),'click',hideWebDAVModal);
+  on($('webdav-connect'),'click',webdavConnect);
+  on($('webdav-login'),'click',webdavLogin);
+  on($('webdav-auth-back'),'click',function(){
+    showWebDAVStep('url');
+    webdavModalTitle.textContent='远程上传';
+  });
+  on($('webdav-refresh'),'click',function(){webdavListDir(webdavCurrentPath)});
+  on($('webdav-back'),'click',function(){
+    var parts=webdavCurrentPath.split('/').filter(Boolean);
+    if(parts.length>1){
+      parts.pop();
+      webdavListDir('/'+parts.join('/')+'/');
+    }else{
+      webdavListDir('/');
+    }
+  });
   on($('bs-theme-btn'),'click',toggleTheme);
   on(document,'dragover',function(e){e.preventDefault()});
   on(document,'drop',function(e){e.preventDefault();if(e.dataTransfer&&e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0])});
