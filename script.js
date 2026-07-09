@@ -14,7 +14,7 @@ var progressFill=$('progress-fill'),progressThumb=$('progress-thumb'),progressTi
 var toastEl=$('toast'),fileInput=$('file-input');
 var firstLoaded=-1,lastLoaded=-1,isAdjusting=false,_progData=null,_rs=0,_rt=null,_rtSec=null,_touchTap=false;
 var coverHues=[25,42,120,175,210,260,330,15,55,150,200,280,350,80,300,10];
-var CH_HEADING_GAP=10,BM_OFFSET_TOL=200,SCROLL_BOUND=800,PARA_MAX=4000,SAVE_DELAY=800,PROC_DELAY=30,TOAST_MS=1800,SEARCH_DELAY=200,SWIPE_MIN=60,SNIP_MAX=100,TRIM_WIN=3;
+var CH_HEADING_GAP=10,BM_OFFSET_TOL=200,SCROLL_BOUND=800,PARA_MAX=4000,SAVE_DELAY=800,PROC_DELAY=30,TOAST_MS=1800,SEARCH_DELAY=200,SNIP_MAX=100,TRIM_WIN=3;
 
 function on(el,ev,fn,opt){if(el)el.addEventListener(ev,fn,opt||false)}
 loadSettings();applySettings();setupEvents();setupProgressDrag();renderBookshelf();
@@ -566,7 +566,7 @@ function setupEvents(){
   on(window,'beforeunload',function(){stopReadingTimer();if(S.fileName)saveProg()});
   on(document,'visibilitychange',function(){if(document.hidden){if(reader.classList.contains('active'))stopReadingTimer()}else{if(reader.classList.contains('active'))startReadingTimer()}});
   var tx=0,ty=0;on(contentEl,'touchstart',function(e){tx=e.touches[0].clientX;ty=e.touches[0].clientY;_touchTap=false;closeTip()},{passive:true});
-  function touchEndTap(e){if(!S.chapters.length)return;var dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;if(Math.abs(dx)>SWIPE_MIN){_touchTap=false;dx>0?goToChapter(Math.max(0,S.currentChapter-1)):goToChapter(Math.min(S.chapters.length-1,S.currentChapter+1));return}if(Math.abs(dx)<20&&Math.abs(dy)<20){var r=contentEl.getBoundingClientRect(),y=e.changedTouches[0].clientY-r.top;if(y>r.height*.5){_touchTap=true;var x=e.changedTouches[0].clientX-r.left;if(x<r.width*.15){goToChapter(Math.max(0,S.currentChapter-1))}else if(x>r.width*.85){goToChapter(Math.min(S.chapters.length-1,S.currentChapter+1))}}}}on(contentEl,'touchend',touchEndTap,{passive:true});
+  function touchEndTap(e){if(!S.chapters.length)return;var dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;if(Math.abs(dx)<20&&Math.abs(dy)<20){var r=contentEl.getBoundingClientRect(),y=e.changedTouches[0].clientY-r.top;if(y>r.height*.5){_touchTap=true;var x=e.changedTouches[0].clientX-r.left;if(x<r.width*.15){goToChapter(Math.max(0,S.currentChapter-1))}else if(x>r.width*.85){goToChapter(Math.min(S.chapters.length-1,S.currentChapter+1))}}}}on(contentEl,'touchend',touchEndTap,{passive:true});
   on(document,'keydown',function(e){if(e.key==='Escape')closeAllPanels();if((e.ctrlKey||e.metaKey)&&e.key==='f'){e.preventDefault();openSearch()}});
   on(document,'click',function(e){var tip=document.querySelector('.ft-tip.show');if(tip&&!tip.contains(e.target)&&!e.target.closest('a[epub\\:type="noteref"]')){closeTip()}});
 }
