@@ -140,7 +140,17 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 #content-inner td,#content-inner th{border:1px solid var(--border);padding:8px 12px}
 
 /* EPUB content isolation — resets app defaults, lets EPUB CSS take over */
-#content-inner .ch-body[data-epub]{all:initial;display:block;word-wrap:break-word;overflow-wrap:break-word;color:var(--text);font-family:var(--font-body)}
+#content-inner .ch-body[data-epub]{all:initial;display:block;word-wrap:break-word;overflow-wrap:break-word;color:var(--text);font-family:var(--font-body);font-size:18px;line-height:1.85}
+/* Force project font settings on body text elements */
+#content-inner .ch-body[data-epub] p,
+#content-inner .ch-body[data-epub] div,
+#content-inner .ch-body[data-epub] span,
+#content-inner .ch-body[data-epub] li,
+#content-inner .ch-body[data-epub] td,
+#content-inner .ch-body[data-epub] th,
+#content-inner .ch-body[data-epub] blockquote,
+#content-inner .ch-body[data-epub] dd,
+#content-inner .ch-body[data-epub] dt{font-family:var(--font-body)!important;font-size:inherit!important;line-height:inherit!important}
 /* Safety defaults — always apply, even when EPUB CSS is present */
 #content-inner .ch-body[data-epub] img{max-width:100%;max-height:70vh;height:auto;object-fit:contain}
 #content-inner .ch-body[data-epub] a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
@@ -198,3 +208,20 @@ mark.shl.act{background:rgba(212,160,88,.7);outline:2px solid var(--accent);bord
   :root{--reader-max:780px}
   #content-inner{padding:60px 40px 100px;font-size:18px}
 }
+
+/* ===== Footnote Tooltip ===== */
+.ft-ref{cursor:pointer;text-decoration:none;color:var(--accent);font-weight:bold;vertical-align:super;font-size:.75em;padding:0 2px}
+.ft-ref:hover{background:var(--accent-soft);border-radius:3px}
+.ft-tip{display:none;position:fixed;z-index:100;max-width:90vw;width:320px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:.85rem;line-height:1.6;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.25),0 2px 8px rgba(0,0,0,.15);pointer-events:none}
+.ft-tip.show{display:block;pointer-events:auto}
+.epub-content aside.footnote-hidden{display:none}
+.epub-content .ft-inline-footnote{font-size:.85rem;color:var(--text-sec);background:var(--accent-soft);border-left:3px solid var(--accent);padding:8px 12px;margin:12px 0;border-radius:0 6px 6px 0}
+.epub-content .ft-inline-footnote:empty{display:none}
+
+/* ===== TOC Nested ===== */
+.toc-item{padding:6px 0;border-bottom:none;font-size:.88rem;cursor:pointer;transition:color .15s}
+.toc-item:hover{color:var(--accent)}
+.toc-item.toc-l1{padding-left:16px;font-size:.82rem;color:var(--text-sec)}
+.toc-item.toc-l2{padding-left:32px;font-size:.78rem;color:var(--text-sec)}
+.toc-item.toc-current{color:var(--accent);font-weight:600}
+#toc-panel .toc-empty{color:var(--text-sec);font-size:.85rem;padding:16px 0}
