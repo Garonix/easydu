@@ -64,13 +64,13 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);-webkit
 .tb-btn:hover{background:var(--accent-soft)}
 .tb-btn.on{color:var(--accent)}
 .tb-title{flex:1;text-align:center;font-size:.85rem;color:var(--text-sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
-#search-bar{position:absolute;top:54px;left:0;right:0;z-index:99;background:var(--toolbar-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:10px 16px;transform:translateY(-100%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s,left .3s cubic-bezier(.4,0,.2,1)}
+#search-bar{position:absolute;top:54px;left:0;right:0;z-index:99;background:var(--toolbar-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:10px 16px;transform:translateY(-100%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s,top .3s,left .3s cubic-bezier(.4,0,.2,1);overflow:hidden}
 #search-bar.open{transform:translateY(0);opacity:1;pointer-events:auto}
-.search-row{display:flex;align-items:center;gap:8px;max-width:var(--reader-max);margin:0 auto}
-#search-input{flex:1;padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:inherit;font-size:.9rem;outline:none}
+.search-row{display:flex;align-items:center;gap:4px;width:100%}
+#search-input{flex:1;min-width:0;padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:inherit;font-size:.9rem;outline:none;line-height:1.4}
 #search-input:focus{border-color:var(--accent)}
-#search-count{font-size:.78rem;color:var(--text-sec);min-width:54px;text-align:center}
-.sr-btn{width:30px;height:30px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
+#search-count{font-size:.78rem;color:var(--text-sec);min-width:40px;text-align:center;flex-shrink:0}
+.sr-btn{flex-shrink:0;width:40px;padding:7px 8px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
 .sr-btn:hover{background:var(--accent-soft);border-color:var(--accent)}
 
 /* Sidebar */
