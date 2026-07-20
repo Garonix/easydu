@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var S={fileName:'',fileSize:0,fileType:'',rawText:'',chapters:[],currentChapter:0,epubCSS:'',epubTitle:'',toc:null,theme:'light',fontSize:18,lineHeight:1.85,padding:'normal',searchQuery:'',searchResults:[],searchIdx:-1,privacyMode:false};
+var S={fileName:'',fileSize:0,fileType:'',rawText:'',chapters:[],currentChapter:0,epubCSS:'',epubTitle:'',toc:null,theme:'light',fontSize:18,lineHeight:1.85,padding:'normal',textColor:'',searchQuery:'',searchResults:[],searchIdx:-1,privacyMode:false};
 var $=function(id){return document.getElementById(id)};
 var bookshelf=$('bookshelf'),loading=$('loading'),loadingText=$('loading-text');
 var reader=$('reader'),toolbar=$('toolbar');
@@ -27,7 +27,7 @@ loadSettings();loadPrivacyMode();applySettings();updatePrivacyUI();setupEvents()
 /* ===== IndexedDB ===== */
 var DBN='JingDuV2',DBV=1,STORE='books';
 function openDB(cb){if(!window.indexedDB){cb(null);return}var r=indexedDB.open(DBN,DBV);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'name'})};r.onsuccess=function(e){cb(e.target.result)};r.onerror=function(){cb(null)}}
-function dbSave(name,data,cb){openDB(function(db){if(!db){cb&&cb(false);return}var tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({name:name,text:data.text||'',chapters:data.chapters||null,type:data.type,size:data.size,cover:data.cover||null,epubCSS:data.epubCSS||''});tx.oncomplete=function(){cb&&cb(true)};tx.onerror=function(){cb&&cb(false)}})}
+function dbSave(name,data,cb){openDB(function(db){if(!db){cb&&cb(false);return}var tx=db.transaction(STORE,'readwrite');var isEpub=data.type==='epub';var chapters=data.chapters;if(isEpub&&chapters)chapters=chapters.map(function(ch){return{title:ch.title||'',html:ch.html||'',href:ch.href||''}});tx.objectStore(STORE).put({name:name,text:data.text||'',chapters:chapters||null,type:data.type,size:data.size,cover:data.cover||null,epubCSS:data.epubCSS||'',toc:data.toc||null,epubTitle:data.epubTitle||''});tx.oncomplete=function(){cb&&cb(true)};tx.onerror=function(){cb&&cb(false)}})}
 function dbLoad(name,cb){openDB(function(db){if(!db){cb(null);return}var tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).get(name);r.onsuccess=function(){cb(r.result||null)};r.onerror=function(){cb(null)}})}
 function dbDelete(name,cb){openDB(function(db){if(!db){cb&&cb();return}var tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(name);tx.oncomplete=function(){cb&&cb()}})}
 
@@ -106,6 +106,7 @@ function parseEPUB(buf,cb){
           for(var mid in manifest){if(manifest[mid].type==='application/x-dtbncx+xml'||/\.ncx$/i.test(manifest[mid].href)){ncxItem=manifest[mid];break}}
           if(ncxItem){
             var nf=zip.file(ncxItem.href);
+            var ncxDir=ncxItem.href.substring(0,ncxItem.href.lastIndexOf('/')+1);
             if(nf)ncxP=nf.async('text').then(function(ncxText){
               var ncxDoc=new DOMParser().parseFromString(ncxText,'application/xml');
               var navMap=ncxDoc.querySelector('navMap');
@@ -115,9 +116,12 @@ function parseEPUB(buf,cb){
                   var label=np.querySelector('navLabel text');
                   var content=np.querySelector('content');
                   if(label&&content){
-                    var src=content.getAttribute('src');
-                    var href=src?src.split('#')[0]:'';
-                    toc.push({title:label.textContent.trim(),href:href,level:level||0,playOrder:np.getAttribute('playOrder')});
+                    var src=content.getAttribute('src')||'';
+                    var hash=src.indexOf('#')>=0?src.substring(src.indexOf('#')):'';
+                    var hrefBase=src?src.split('#')[0]:'';
+                    /* 相对 NCX 所在目录解析，与 spine 的 item.href 对齐 */
+                    var fullHref=hrefBase?resolvePath(ncxDir,hrefBase):'';
+                    toc.push({title:label.textContent.trim(),href:fullHref+hash,level:level||0,playOrder:np.getAttribute('playOrder')});
                   }
                   var children=np.querySelectorAll(':scope > navPoint');
                   for(var i=0;i<children.length;i++)parseNavPoint(children[i],(level||0)+1);
@@ -184,8 +188,9 @@ function parseEPUB(buf,cb){
             var cssMap={};arr.forEach(function(c){if(c.text)cssMap[c.href]=c.text});
             return{map:cssMap,raw:arr.map(function(c){return c.text}).join('\n')};
           });
-          /* ---- Chapter extraction ---- */
-          var chP=Promise.all(spine.map(function(ref){
+          /* ---- Chapter extraction (batched for mobile Safari) ---- */
+          var CH_BATCH=50;
+          function extractChapter(ref){
             var item=manifest[ref];if(!item)return Promise.resolve({title:'',html:''});
             var f=zip.file(item.href);if(!f)return Promise.resolve({title:'',html:''});
             return f.async('text').then(function(xhtml){
@@ -216,7 +221,23 @@ function parseEPUB(buf,cb){
                 return{title:chTitle,html:html,text:text,href:item.href};
               });
             }).catch(function(){return{title:'',html:'',text:''}});
-          }));
+          }
+          function processBatch(startIdx){
+            var result=[];
+            var i=startIdx;
+            function nextBatch(){
+              var end=Math.min(i+CH_BATCH,spine.length);
+              var batch=spine.slice(i,end);
+              return Promise.all(batch.map(extractChapter)).then(function(r){
+                result=result.concat(r);
+                i=end;
+                if(i<spine.length){return new Promise(function(resolve){setTimeout(resolve,0)}).then(nextBatch)}
+                return result;
+              });
+            }
+            return nextBatch();
+          }
+          var chP=processBatch(0);
           /* ---- Combine ---- */
           return Promise.all([coverP,chP,cssP,fontP,navP]).then(function(r){
             var cssData=r[2]||{map:{},raw:''};
@@ -253,44 +274,45 @@ function processEpubCSS(rawCSS,fontMap,cssMap,depth){
   return css;
 }
 function scopeCSS(css){
-  var result='',i=0,len=css.length;
+  var parts=[],i=0,len=css.length;
   while(i<len){
-    /* skip whitespace */
-    while(i<len&&/\s/.test(css[i])){result+=css[i];i++}
+    while(i<len&&/\s/.test(css[i])){parts.push(css[i]);i++}
     if(i>=len)break;
-    /* skip @-blocks that should not be scoped */
-    var atMatch=css.slice(i).match(/^@(charset|import|namespace|font-face|[-\w]*keyframes|media|supports|page)\b/i);
-    if(atMatch){
-      var atName=atMatch[1].toLowerCase();
-      if(atName==='font-face'||atName.slice(-9)==='keyframes'){
-        var atEnd=findBlockEnd(css,i);result+=css.slice(i,atEnd);i=atEnd;continue;
+    var ch=css[i];
+    if(ch==='@'){
+      var rest=css.substring(i,i+20);
+      var atMatch=rest.match(/^@(charset|import|namespace|font-face|[-\w]*keyframes|media|supports|page)\b/i);
+      if(atMatch){
+        var atName=atMatch[1].toLowerCase();
+        if(atName==='font-face'||atName.slice(-9)==='keyframes'){
+          var atEnd=findBlockEnd(css,i);parts.push(css.substring(i,atEnd));i=atEnd;continue;
+        }
+        if(atName==='media'||atName==='supports'){
+          var mOpen=css.indexOf('{',i);if(mOpen<0){parts.push(css.substring(i));break}
+          parts.push(css.substring(i,mOpen+1));var inner=scopeCSS(css.substring(mOpen+1,findBlockEnd(css,mOpen+1)-1));parts.push(inner,'}');i=findBlockEnd(css,mOpen+1);continue;
+        }
+        if(atName==='import'){
+          var semiI=css.indexOf(';',i);if(semiI<0){parts.push(css.substring(i));break}parts.push(css.substring(i,semiI+1));i=semiI+1;continue;
+        }
+        var semiJ=css.indexOf(';',i);if(semiJ<0){parts.push(css.substring(i));break}parts.push(css.substring(i,semiJ+1));i=semiJ+1;continue;
       }
-      if(atName==='media'||atName==='supports'){
-        var mOpen=css.indexOf('{',i);if(mOpen<0){result+=css.slice(i);break}
-        result+=css.slice(i,mOpen+1);var inner=scopeCSS(css.slice(mOpen+1,findBlockEnd(css,mOpen+1)-1));result+=inner+'}';i=findBlockEnd(css,mOpen+1);continue;
-      }
-      if(atName==='import'){
-        var semiI=css.indexOf(';',i);if(semiI<0){result+=css.slice(i);break}result+=css.slice(i,semiI+1);i=semiI+1;continue;
-      }
-      var semiJ=css.indexOf(';',i);if(semiJ<0){result+=css.slice(i);break}result+=css.slice(i,semiJ+1);i=semiJ+1;continue;
     }
-    /* find next rule block */
     var bStart=css.indexOf('{',i);
-    if(bStart<0){result+=css.slice(i);break}
-    var bEnd=css.indexOf('}',bStart);if(bEnd<0){result+=css.slice(i);break}
-    var selectors=css.slice(i,bStart).trim();
-    var body=css.slice(bStart,bEnd+1);
+    if(bStart<0){parts.push(css.substring(i));break}
+    var bEnd=css.indexOf('}',bStart);if(bEnd<0){parts.push(css.substring(i));break}
+    var selectors=css.substring(i,bStart).trim();
+    var body=css.substring(bStart,bEnd+1);
     if(selectors){
       var scoped=selectors.split(',').map(function(sel){
         sel=sel.trim();if(!sel)return sel;
         if(sel.indexOf('.epub-content')===0)return sel;
         return'.epub-content '+sel;
       }).join(', ');
-      result+=scoped+' '+body;
-    }else{result+=body}
+      parts.push(scoped,' ',body);
+    }else{parts.push(body)}
     i=bEnd+1;
   }
-  return result;
+  return parts.join('');
 }
 function findBlockEnd(css,start){
   var depth=0,i=start,len=css.length;
@@ -298,16 +320,42 @@ function findBlockEnd(css,start){
   return len;
 }
 function resolvePath(base,rel){
+  try{rel=decodeURIComponent(rel)}catch(e){}
   var baseDir=base.substring(0,base.lastIndexOf('/')+1);
   if(rel.startsWith('/'))return rel.substring(1);
   var parts=(baseDir+rel).split('/'),stack=[];
   for(var i=0;i<parts.length;i++){if(parts[i]==='..')stack.pop();else if(parts[i]!==''&&parts[i]!=='.')stack.push(parts[i])}
   return stack.join('/');
 }
+/* 统一章节/目录路径比较：解码、去前导 ./、忽略大小写、允许尾缀匹配 */
+function normHref(h){
+  if(!h)return'';
+  try{h=decodeURIComponent(h)}catch(e){}
+  h=h.split('#')[0].replace(/^\.\//,'').replace(/\\/g,'/');
+  while(h.charAt(0)==='/')h=h.slice(1);
+  return h.toLowerCase();
+}
+function hrefMatch(a,b){
+  a=normHref(a);b=normHref(b);
+  if(!a||!b)return false;
+  if(a===b)return true;
+  if(a.endsWith('/'+b)||b.endsWith('/'+a))return true;
+  /* 仅文件名一致时也算命中（部分 EPUB 目录与 spine 目录层级不同） */
+  var ba=a.split('/').pop(),bb=b.split('/').pop();
+  return ba&&bb&&ba===bb;
+}
+function findChapterByHref(href){
+  if(!href)return -1;
+  var base=href.split('#')[0];
+  for(var i=0;i<S.chapters.length;i++){
+    if(hrefMatch(S.chapters[i].href||'',base))return i;
+  }
+  return -1;
+}
 
 /* ===== Settings ===== */
-function loadSettings(){try{var d=JSON.parse(localStorage.getItem('jd_s'));if(d){S.theme=d.theme||'light';S.fontSize=d.fs||18;S.lineHeight=d.lh||1.85;S.padding=d.pad||'normal'}}catch(e){}}
-function saveSettings(){try{localStorage.setItem('jd_s',JSON.stringify({theme:S.theme,fs:S.fontSize,lh:S.lineHeight,pad:S.padding}))}catch(e){}}
+function loadSettings(){try{var d=JSON.parse(localStorage.getItem('jd_s'));if(d){S.theme=d.theme||'light';S.fontSize=d.fs||18;S.lineHeight=d.lh||1.85;S.padding=d.pad||'normal';S.textColor=d.tc||''}}catch(e){}}
+function saveSettings(){try{localStorage.setItem('jd_s',JSON.stringify({theme:S.theme,fs:S.fontSize,lh:S.lineHeight,pad:S.padding,tc:S.textColor||''}))}catch(e){}}
 function loadPrivacyMode(){try{S.privacyMode=localStorage.getItem('jd_privacy')==='true'}catch(e){S.privacyMode=false}}
 function savePrivacyMode(){try{localStorage.setItem('jd_privacy',S.privacyMode.toString())}catch(e){}}
 function togglePrivacyMode(){S.privacyMode=!S.privacyMode;savePrivacyMode();updatePrivacyUI();renderBookshelf();toast(S.privacyMode?'已开启隐私模式':'已关闭隐私模式')}
@@ -315,13 +363,27 @@ function updatePrivacyUI(){var btn=$('privacy-toggle');if(btn){btn.textContent=S
 function updateReaderPrivacyBadge(){if(!reader||!reader.classList.contains('active'))return;if(!tbTitle||!S.fileName)return;var title=S.fileName.replace(/\.[^.]+$/,'');tbTitle.innerHTML=S.privacyMode?'<span>'+esc(title)+'</span>':esc(title);tbTitle.classList.toggle('privacy-title',S.privacyMode)}
 function applySettings(){
   document.documentElement.setAttribute('data-theme',S.theme);
-  if(contentInner){contentInner.style.fontSize=S.fontSize+'px';contentInner.style.lineHeight=S.lineHeight;contentInner.style.padding=({narrow:'40px 16px 100px',normal:'60px 24px 100px',wide:'80px 48px 100px'})[S.padding]||'60px 24px 100px'}
-  document.querySelectorAll('.ch-body[data-epub]').forEach(function(el){el.style.fontSize=S.fontSize+'px';el.style.lineHeight=S.lineHeight});
+  if(S.textColor){document.documentElement.style.setProperty('--reader-text',S.textColor)}
+  else{document.documentElement.style.removeProperty('--reader-text')}
+  if(contentInner){
+    contentInner.style.fontSize=S.fontSize+'px';
+    contentInner.style.lineHeight=S.lineHeight;
+    contentInner.style.padding=({narrow:'40px 16px 100px',normal:'60px 24px 100px',wide:'80px 48px 100px'})[S.padding]||'60px 24px 100px';
+    contentInner.style.color=S.textColor||'';
+  }
+  document.querySelectorAll('.ch-body[data-epub]').forEach(function(el){
+    el.style.fontSize=S.fontSize+'px';
+    el.style.lineHeight=S.lineHeight;
+    el.style.color=S.textColor||'';
+  });
   var rf=$('range-fs'),vf=$('val-fs'),rl=$('range-lh'),vl=$('val-lh');
   if(rf)rf.value=S.fontSize;if(vf)vf.textContent=S.fontSize+'px';
   if(rl)rl.value=S.lineHeight;if(vl)vl.textContent=S.lineHeight.toFixed(2);
-  document.querySelectorAll('.theme-toggle button').forEach(function(b){b.classList.toggle('active',b.dataset.t===S.theme)});
   document.querySelectorAll('[data-pad]').forEach(function(b){b.classList.toggle('active',b.dataset.pad===S.padding)});
+  document.querySelectorAll('[data-color]').forEach(function(b){
+    var c=b.getAttribute('data-color')||'';
+    b.classList.toggle('active',c===(S.textColor||''));
+  });
 }
 
 /* ===== Bookshelf UI ===== */
@@ -350,7 +412,7 @@ function renderBookshelf(){
   }).join('');
 }
 function getBookPct(n){try{var p=JSON.parse(localStorage.getItem('jd_p')||'{}')[n];return p&&p.pct?p.pct:0}catch(e){return 0}}
-function showBookshelf(){if(S.fileName){saveProg();stopReadingTimer();closeSearch();togglePanel('sidebar',false);togglePanel('settings',false)}clearEpubCSS();_ftHandle=null;var tip=document.querySelector('.ft-tip');if(tip)tip.parentNode.removeChild(tip);reader.classList.remove('active');bookshelf.classList.remove('hide');renderBookshelf()}
+function showBookshelf(){if(S.fileName){saveProg();stopReadingTimer();closeSearch();togglePanel('sidebar',false);togglePanel('settings',false)}clearEpubCSS();closeTip();reader.classList.remove('active');bookshelf.classList.remove('hide');renderBookshelf()}
 function hideBookshelf(){bookshelf.classList.add('hide')}
 
 /* ===== File Handling ===== */
@@ -403,7 +465,7 @@ function handleEPUB(f){
   rd.readAsArrayBuffer(f);
 }
 function afterParseEPUB(){
-  _progData=null;
+  _progData=null;_textCache=null;_textCacheLen=0;
   if(!S.chapters||!S.chapters.length)S.chapters=[{title:'全文',content:S.rawText||'(空文件)',html:''}];
   var sv=loadProg(S.fileName);var sc=sv?Math.min(sv.ch,S.chapters.length-1):0;var so=sv?sv.offset||0:0;
   S.searchQuery='';S.searchResults=[];S.searchIdx=-1;
@@ -482,22 +544,22 @@ function splitMD(md){var lines=md.split('\n'),ch=[],cur=null;for(var i=0;i<lines
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 var _dp=new DOMParser();
 var CSS_XSS=/expression\s*\(|-moz-binding\s*:|behavior\s*:|@import|javascript\s*:/i;
+var _ALLOWED_TAGS=/^(p|br|hr|h[1-6]|ul|ol|li|blockquote|pre|code|em|strong|b|i|u|s|a|span|div|table|thead|tbody|tr|td|th|img|sub|sup|small|mark|dl|dt|dd|figure|figcaption|section|article|header|footer|nav|aside|abbr|cite|dfn|kbd|samp|var|time|ruby|rt|rp|wbr|sup)$/i;
+var _ALLOWED_ATTRS=/^(href|src|alt|title|class|id|style|type|colspan|rowspan|width|height|datetime|cite|dir|lang|role|aria-[\w-]+|epub:type|xml:lang)$/i;
+var _UNSAFE_SCHEMES=/^\s*(?:javascript|vbscript):/i;
 function sanitizeHTML(html){
-  var ALLOWED_TAGS=/^(p|br|hr|h[1-6]|ul|ol|li|blockquote|pre|code|em|strong|b|i|u|s|a|span|div|table|thead|tbody|tr|td|th|img|sub|sup|small|mark|dl|dt|dd|figure|figcaption|section|article|header|footer|nav|aside|abbr|cite|dfn|kbd|samp|var|time|ruby|rt|rp|wbr|sup)$/i;
-  var ALLOWED_ATTRS=/^(href|src|alt|title|class|id|style|type|colspan|rowspan|width|height|datetime|cite|dir|lang|role|aria-[\w-]+|epub:type|xml:lang)$/i;
-  var UNSAFE_SCHEMES=/^\s*(?:javascript|vbscript):/i;
   var doc=_dp.parseFromString(html,'text/html');
   var walker=document.createTreeWalker(doc.body,NodeFilter.SHOW_ELEMENT);
   var toRemove=[];
   while(walker.nextNode()){
     var el=walker.currentNode;
-    if(!ALLOWED_TAGS.test(el.tagName)){toRemove.push(el);continue}
+    if(!_ALLOWED_TAGS.test(el.tagName)){toRemove.push(el);continue}
     var attrs=Array.prototype.slice.call(el.attributes);
     for(var i=0;i<attrs.length;i++){
       var name=attrs[i].name.toLowerCase();
-      if(!ALLOWED_ATTRS.test(name)){el.removeAttribute(attrs[i].name);continue}
+      if(!_ALLOWED_ATTRS.test(name)){el.removeAttribute(attrs[i].name);continue}
       if(name==='style'&&CSS_XSS.test(attrs[i].value)){el.removeAttribute(attrs[i].name);continue}
-      if(UNSAFE_SCHEMES.test(attrs[i].value)||(name==='href'&&/^\s*data:/i.test(attrs[i].value))){el.removeAttribute(attrs[i].name)}
+      if(_UNSAFE_SCHEMES.test(attrs[i].value)||(name==='href'&&/^\s*data:/i.test(attrs[i].value))){el.removeAttribute(attrs[i].name)}
     }
   }
   for(var j=toRemove.length-1;j>=0;j--){
@@ -505,7 +567,7 @@ function sanitizeHTML(html){
     while(toRemove[j].firstChild)parent.insertBefore(toRemove[j].firstChild,toRemove[j]);
     parent.removeChild(toRemove[j]);
   }
-  return doc.body.innerHTML;
+  return doc.body;
 }
 function txtToHtml(t){var ls=t.split(/\n/),h=[],inP=false,inBq=false,inUl=false,inOl=false;for(var i=0;i<ls.length;i++){var raw=ls[i],tr=raw.trim();if(!tr){closeTags();continue}var hm=tr.match(/^(#{1,3})\s(.+)/);if(hm){closeTags();h.push('<h'+hm[1].length+'>'+esc(hm[2])+'</h'+hm[1].length+'>');continue}var bqm=tr.match(/^>\s?(.+)/);if(bqm){if(inP){h.push('</p>');inP=false}if(!inBq){h.push('<blockquote>');inBq=true}h.push('<p>'+esc(bqm[1])+'</p>');continue}var ulm=tr.match(/^[-*+]\s(.+)/);if(ulm){closeInline();if(inOl){h.push('</ol>');inOl=false}if(!inUl){h.push('<ul>');inUl=true}h.push('<li>'+esc(ulm[1])+'</li>');continue}var olm=tr.match(/^\d+[.)]\s(.+)/);if(olm){closeInline();if(inUl){h.push('</ul>');inUl=false}if(!inOl){h.push('<ol>');inOl=true}h.push('<li>'+esc(olm[1])+'</li>');continue}closeInline();if(!inP){h.push('<p>');inP=true}h.push(esc(tr))}function closeTags(){if(inP){h.push('</p>');inP=false}if(inBq){h.push('</blockquote>');inBq=false}if(inUl){h.push('</ul>');inUl=false}if(inOl){h.push('</ol>');inOl=false}}function closeInline(){if(inP){h.push('</p>');inP=false}if(inBq){h.push('</blockquote>');inBq=false}}if(inP)h.push('</p>');if(inBq)h.push('</blockquote>');if(inUl)h.push('</ul>');if(inOl)h.push('</ol>');return h.join('')}
 
@@ -517,11 +579,68 @@ function injectEpubCSS(){
   document.head.appendChild(s);
 }
 function clearEpubCSS(){var old=$('epub-styles');if(old)old.parentNode.removeChild(old)}
-function createChapterBlock(idx){var ch=S.chapters[idx];if(!ch)return null;var d=document.createElement('div');d.className='ch-block';d.dataset.idx=idx;var isEpub=!!ch.html;if(!isEpub){var t=document.createElement('h2');t.className='ch-title';t.textContent=ch.title||'';d.appendChild(t)}var b=document.createElement('div');b.className='ch-body';if(ch.html){var raw=sanitizeHTML(ch.html);var doc2=_dp.parseFromString('<div>'+raw+'</div>','text/html');var firstH1=doc2.querySelector('h1');if(firstH1)firstH1.remove();b.innerHTML=doc2.body.innerHTML;if(S.epubCSS){b.classList.add('epub-content');b.setAttribute('data-epub','');b.setAttribute('data-epub-has-css','');b.style.fontSize=S.fontSize+'px';b.style.lineHeight=S.lineHeight}}else{b.innerHTML=txtToHtml(ch.content||'')}d.appendChild(b);return d}
+function createChapterBlock(idx){var ch=S.chapters[idx];if(!ch)return null;var d=document.createElement('div');d.className='ch-block';d.dataset.idx=idx;var isEpub=!!ch.html;if(!isEpub){var t=document.createElement('h2');t.className='ch-title';t.textContent=ch.title||'';d.appendChild(t)}var b=document.createElement('div');b.className='ch-body';if(ch.html){var body=sanitizeHTML(ch.html);var firstH1=body.querySelector('h1');if(firstH1)firstH1.remove();var hCnt=0;body.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(function(h){if(!h.id)h.id='ch-'+idx+'-h-'+(hCnt++)});while(body.firstChild)b.appendChild(body.firstChild);if(S.epubCSS){b.classList.add('epub-content');b.setAttribute('data-epub','');b.setAttribute('data-epub-has-css','');b.style.fontSize=S.fontSize+'px';b.style.lineHeight=S.lineHeight;if(S.textColor)b.style.color=S.textColor}}else{b.innerHTML=txtToHtml(ch.content||'')}d.appendChild(b);return d}
 function createSep(){var d=document.createElement('div');d.className='ch-sep';d.innerHTML='<div class="ch-sep-dot"></div><div class="ch-sep-dot"></div><div class="ch-sep-dot"></div>';return d}
-function initSeamless(chapter,offset){contentInner.innerHTML='';firstLoaded=-1;lastLoaded=-1;injectEpubCSS();var st=Math.max(0,chapter-2),en=Math.min(S.chapters.length-1,chapter+2);for(var i=st;i<=en;i++){var blk=createChapterBlock(i);if(!blk)continue;if(contentInner.children.length>0)contentInner.appendChild(createSep());contentInner.appendChild(blk);if(firstLoaded===-1)firstLoaded=i;lastLoaded=i}S.currentChapter=chapter;requestAnimationFrame(function(){var bl=contentInner.querySelector('[data-idx="'+chapter+'"]');if(bl)contentEl.scrollTop=bl.offsetTop+(offset||0);updateProgress();highlightToc();updateBmBtn();checkInfinite();schedulePreload();if(S.fileType==='epub'){_ftHandle=processFootnotes();setupEpubLinkHandler()}})}
-function appendChapter(idx){if(idx>=S.chapters.length||idx<=lastLoaded)return;if(contentInner.children.length>0)contentInner.appendChild(createSep());var blk=createChapterBlock(idx);if(blk){contentInner.appendChild(blk);lastLoaded=idx;trimChapters()}}
-function prependChapter(idx){if(idx<0||idx>=firstLoaded)return;var oH=contentEl.scrollHeight,oT=contentEl.scrollTop;var bl=createChapterBlock(idx);if(!bl)return;var fc=contentInner.firstChild;if(fc){var s=createSep();contentInner.insertBefore(s,fc);contentInner.insertBefore(bl,s)}else contentInner.appendChild(bl);firstLoaded=idx;isAdjusting=true;contentEl.scrollTop=oT+(contentEl.scrollHeight-oH);requestAnimationFrame(function(){isAdjusting=false;trimChapters()})}
+/* 相对 #content 的滚动偏移：offsetTop 在嵌套布局/transform 下不可靠，移动端更明显 */
+function getContentOffset(el){
+  if(!el||!contentEl)return 0;
+  var er=el.getBoundingClientRect(),cr=contentEl.getBoundingClientRect();
+  return er.top-cr.top+contentEl.scrollTop;
+}
+/* 等待图片/字体布局稳定后再定位，避免 EPUB 后几章因图片未加载导致错位 */
+function whenLayoutReady(root,cb,timeout){
+  var done=false,t=timeout||1200;
+  function finish(){if(done)return;done=true;cb()}
+  var imgs=root?root.querySelectorAll('img'):[];
+  var pending=0;
+  for(var i=0;i<imgs.length;i++){
+    if(imgs[i].complete&&imgs[i].naturalWidth>0)continue;
+    pending++;
+    (function(img){
+      var onDone=function(){img.removeEventListener('load',onDone);img.removeEventListener('error',onDone);pending--;if(pending<=0)finish()};
+      img.addEventListener('load',onDone);img.addEventListener('error',onDone);
+    })(imgs[i]);
+  }
+  if(document.fonts&&document.fonts.ready){document.fonts.ready.then(function(){if(pending<=0)finish()}).catch(function(){})}
+  if(pending<=0){requestAnimationFrame(function(){requestAnimationFrame(finish)});return}
+  setTimeout(finish,t);
+}
+function scrollToChapter(chapter,offset){
+  var bl=contentInner.querySelector('[data-idx="'+chapter+'"]');
+  if(!bl)return;
+  isAdjusting=true;
+  contentEl.scrollTop=getContentOffset(bl)+(offset||0);
+  requestAnimationFrame(function(){isAdjusting=false});
+}
+function scrollToElement(el,pad){
+  if(!el)return;
+  isAdjusting=true;
+  contentEl.scrollTop=Math.max(0,getContentOffset(el)-(pad||0));
+  requestAnimationFrame(function(){isAdjusting=false});
+}
+function initSeamless(chapter,offset,after){
+  contentInner.innerHTML='';firstLoaded=-1;lastLoaded=-1;injectEpubCSS();
+  var st=Math.max(0,chapter-2),en=Math.min(S.chapters.length-1,chapter+2);
+  for(var i=st;i<=en;i++){
+    var blk=createChapterBlock(i);if(!blk)continue;
+    if(contentInner.children.length>0)contentInner.appendChild(createSep());
+    contentInner.appendChild(blk);
+    if(firstLoaded===-1)firstLoaded=i;lastLoaded=i;
+  }
+  S.currentChapter=chapter;
+  isAdjusting=true;
+  contentEl.scrollTop=0;
+  function settle(){
+    scrollToChapter(chapter,offset||0);
+    updateProgress();highlightToc();updateBmBtn();
+    checkInfinite();schedulePreload();
+    if(S.fileType==='epub'){processFootnotes();setupEpubLinkHandler()}
+    if(typeof after==='function')after();
+  }
+  whenLayoutReady(contentInner,settle);
+}
+function appendChapter(idx){if(idx>=S.chapters.length||idx<=lastLoaded)return;if(contentInner.children.length>0)contentInner.appendChild(createSep());var blk=createChapterBlock(idx);if(blk){contentInner.appendChild(blk);lastLoaded=idx;trimChapters();if(S.fileType==='epub'&&_ftTipEl)_rebuildFtMap()}}
+function prependChapter(idx){if(idx<0||idx>=firstLoaded)return;var oH=contentEl.scrollHeight,oT=contentEl.scrollTop;var bl=createChapterBlock(idx);if(!bl)return;var fc=contentInner.firstChild;if(fc){var s=createSep();contentInner.insertBefore(s,fc);contentInner.insertBefore(bl,s)}else contentInner.appendChild(bl);firstLoaded=idx;isAdjusting=true;contentEl.scrollTop=oT+(contentEl.scrollHeight-oH);requestAnimationFrame(function(){isAdjusting=false;trimChapters();if(S.fileType==='epub'&&_ftTipEl)_rebuildFtMap()})}
 function checkInfinite(){if(isAdjusting||!S.chapters.length)return;var st=contentEl.scrollTop,sb=st+contentEl.clientHeight,sh=contentEl.scrollHeight;if(sb>sh-SCROLL_BOUND&&lastLoaded<S.chapters.length-1)appendChapter(lastLoaded+1);if(st<SCROLL_BOUND&&firstLoaded>0)prependChapter(firstLoaded-1)}
 var _preloadTimer=null;
 function schedulePreload(){
@@ -572,10 +691,10 @@ function updateReadingChapter(){var bs=contentInner.querySelectorAll('.ch-block'
 var svTimer;function afterScroll(){if(isAdjusting)return;closeTip();updateReadingChapter();updateProgress();checkInfinite();updateBmBtn();clearTimeout(svTimer);svTimer=setTimeout(function(){saveProg();schedulePreload()},SAVE_DELAY)}
 
 /* ===== Progress ===== */
-function getProgressData(){if(_progData&&_progData.len===S.chapters.length)return _progData;var total=0,cum=[0];for(var i=0;i<S.chapters.length;i++){total+=Math.max(1,(S.chapters[i].content||'').length);cum.push(total)}_progData={cum:cum,total:total,len:S.chapters.length};return _progData}
-function getAccurateProgress(){if(!S.chapters||!S.chapters.length)return 0;var pd=getProgressData();if(!pd.total)return 0;var bl=contentInner.querySelector('[data-idx="'+S.currentChapter+'"]');if(!bl)return pd.cum[S.currentChapter]/pd.total;var cs=pd.cum[S.currentChapter],cl=pd.cum[S.currentChapter+1]-cs;var so=contentEl.scrollTop-bl.offsetTop,cp=bl.offsetHeight>0?Math.max(0,Math.min(1,so/bl.offsetHeight)):0;return(cs+cl*cp)/pd.total}
+function getProgressData(){if(_progData&&_progData.len===S.chapters.length)return _progData;var total=0,cum=[0];for(var i=0;i<S.chapters.length;i++){total+=Math.max(1,getChText(S.chapters[i],i).length);cum.push(total)}_progData={cum:cum,total:total,len:S.chapters.length};return _progData}
+function getAccurateProgress(){if(!S.chapters||!S.chapters.length)return 0;var pd=getProgressData();if(!pd.total)return 0;var bl=contentInner.querySelector('[data-idx="'+S.currentChapter+'"]');if(!bl)return pd.cum[S.currentChapter]/pd.total;var cs=pd.cum[S.currentChapter],cl=pd.cum[S.currentChapter+1]-cs;var so=contentEl.scrollTop-getContentOffset(bl),cp=bl.offsetHeight>0?Math.max(0,Math.min(1,so/bl.offsetHeight)):0;return(cs+cl*cp)/pd.total}
 function updateProgress(){var pct=getAccurateProgress(),pi=Math.round(pct*100);progressFill.style.width=pi+'%';progressThumb.style.left=pi+'%';progressTip.style.left=pi+'%';var ch=S.chapters[S.currentChapter];progressTip.textContent=(ch?ch.title:'')+' · '+pi+'%'}
-function jumpToPercent(pct){var pd=getProgressData();if(!pd.total)return;var tc=pct*pd.total,ci=0;for(var i=0;i<pd.cum.length-1;i++){if(pd.cum[i+1]>=tc){ci=i;break}ci=i+1}ci=Math.min(ci,S.chapters.length-1);var cs=pd.cum[ci],cl=pd.cum[ci+1]-cs,cp2=cl>0?(tc-cs)/cl:0;var bl=contentInner.querySelector('[data-idx="'+ci+'"]');if(bl){contentEl.scrollTop=bl.offsetTop+cp2*bl.offsetHeight;if(ci!==S.currentChapter){S.currentChapter=ci;highlightToc();updateBmBtn()}}else{goToChapter(ci);requestAnimationFrame(function(){var b2=contentInner.querySelector('[data-idx="'+ci+'"]');if(b2)contentEl.scrollTop=b2.offsetTop+cp2*b2.offsetHeight})}}
+function jumpToPercent(pct){var pd=getProgressData();if(!pd.total)return;var tc=pct*pd.total,ci=0;for(var i=0;i<pd.cum.length-1;i++){if(pd.cum[i+1]>=tc){ci=i;break}ci=i+1}ci=Math.min(ci,S.chapters.length-1);var cs=pd.cum[ci],cl=pd.cum[ci+1]-cs,cp2=cl>0?(tc-cs)/cl:0;var bl=contentInner.querySelector('[data-idx="'+ci+'"]');if(bl){contentEl.scrollTop=getContentOffset(bl)+cp2*bl.offsetHeight;if(ci!==S.currentChapter){S.currentChapter=ci;highlightToc();updateBmBtn()}}else{goToChapter(ci,function(){var b2=contentInner.querySelector('[data-idx="'+ci+'"]');if(b2)contentEl.scrollTop=getContentOffset(b2)+cp2*b2.offsetHeight})}}
 function setupProgressDrag(){var dragging=false;function getPct(e){var r=progressTrack.getBoundingClientRect();var cx=e.touches?e.touches[0].clientX:e.clientX;return Math.max(0,Math.min(1,(cx-r.left)/r.width))}function visual(p){var pd=getProgressData(),pi=Math.round(p*100);progressFill.style.width=pi+'%';progressThumb.style.left=pi+'%';progressTip.style.left=pi+'%';var tc=p*pd.total,ci=0;for(var i=0;i<pd.cum.length-1;i++){if(pd.cum[i+1]>=tc){ci=i;break}ci=i+1}ci=Math.min(ci,S.chapters.length-1);progressTip.textContent=(S.chapters[ci]?S.chapters[ci].title:'')+' · '+pi+'%'}function start(e){if(!S.chapters.length)return;dragging=true;progressTrack.classList.add('active');visual(getPct(e))}function move(e){if(!dragging)return;visual(getPct(e));e.preventDefault()}function end(e){if(!dragging)return;dragging=false;progressTrack.classList.remove('active');var r=progressTrack.getBoundingClientRect();var cx=e.changedTouches?e.changedTouches[0].clientX:e.clientX;jumpToPercent(Math.max(0,Math.min(1,(cx-r.left)/r.width)))}on(progressTrack,'mousedown',start);on(document,'mousemove',move);on(document,'mouseup',end);on(progressTrack,'touchstart',function(e){e.preventDefault();start(e)},{passive:false});on(document,'touchmove',move,{passive:false});on(document,'touchend',end)}
 
 /* ===== Bookmarks ===== */
@@ -583,17 +702,29 @@ function getBookmarks(){try{return JSON.parse(localStorage.getItem('jd_bm_'+S.fi
 function saveBookmarks(bms){try{localStorage.setItem('jd_bm_'+S.fileName,JSON.stringify(bms))}catch(e){}}
 function getFirstVisibleLine(){var els=contentInner.querySelectorAll('p, h2, h3, h4, li, blockquote, pre');var rect=contentEl.getBoundingClientRect();var vt=rect.top,vb=rect.bottom;var checked=0;for(var i=0;i<els.length;i++){var r=els[i].getBoundingClientRect();if(r.bottom<=vt||r.top>=vb)continue;checked++;if(checked>10)break;var text=els[i].textContent.trim();if(text)return text.slice(0,SNIP_MAX)}return''}
 function toggleBookmark(){if(!S.fileName)return;var bms=getBookmarks();var exist=-1;for(var i=0;i<bms.length;i++){if(bms[i].ch===S.currentChapter&&Math.abs(bms[i].offset-getChapterOffset())<BM_OFFSET_TOL){exist=i;break}}if(exist>=0){bms.splice(exist,1);toast('已移除书签')}else{var firstLine=getFirstVisibleLine();if(!firstLine){toast('书签保存失败');return}var pct=Math.round(getAccurateProgress()*100);bms.push({ch:S.currentChapter,offset:getChapterOffset(),snip:firstLine,progress:pct,ts:Date.now()});toast('已添加书签')}saveBookmarks(bms);renderBookmarks();updateBmBtn()}
-function getChapterOffset(){var bl=contentInner.querySelector('[data-idx="'+S.currentChapter+'"]');return bl?contentEl.scrollTop-bl.offsetTop:0}
+function getChapterOffset(){var bl=contentInner.querySelector('[data-idx="'+S.currentChapter+'"]');return bl?contentEl.scrollTop-getContentOffset(bl):0}
 function deleteBookmark(i){var bms=getBookmarks();bms.splice(i,1);saveBookmarks(bms);renderBookmarks();updateBmBtn();toast('已删除书签')}
 function renderBookmarks(){var bms=getBookmarks();if(!bms.length){bmList.innerHTML='<div class="bm-empty">暂无书签<br><small>阅读时点击书签图标添加</small></div>';return}bmList.innerHTML=bms.map(function(b,i){var cn=S.chapters[b.ch]?S.chapters[b.ch].title:'未知章节';var dt=new Date(b.ts);var ds=(dt.getMonth()+1)+'/'+dt.getDate()+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0');var prog=b.progress!==undefined?'<span class="bm-prog">'+b.progress+'</span>':'';return '<div class="bm-item" onclick="J.go('+b.ch+','+b.offset+')"><div class="bm-snippet">'+esc(b.snip||'')+'</div><div class="bm-meta"><span>'+cn+'</span><span>'+ds+'</span>'+prog+'</div><button class="bm-del" onclick="event.stopPropagation();J.delBm('+i+')" title="删除"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>'}).join('')}
 function updateBmBtn(){var bms=getBookmarks();var on2=false;for(var i=0;i<bms.length;i++){if(bms[i].ch===S.currentChapter&&Math.abs(bms[i].offset-getChapterOffset())<BM_OFFSET_TOL){on2=true;break}}var btn=$('btn-bm');if(!btn)return;btn.classList.toggle('on',on2);var svg=btn.querySelector('svg');if(svg)svg.setAttribute('fill',on2?'currentColor':'none')}
 
 /* ===== Search ===== */
+var _textCache=null,_textCacheLen=0;
+function getChText(ch,idx){
+  if(ch.content)return ch.content;
+  if(ch._text)return ch._text;
+  if(ch.html){
+    if(!_textCache||_textCacheLen!==S.chapters.length){_textCache=new Array(S.chapters.length);_textCacheLen=S.chapters.length}
+    if(!_textCache[idx])_textCache[idx]=_dp.parseFromString('<div>'+ch.html+'</div>','text/html').body.textContent;
+    ch._text=_textCache[idx];
+    return ch._text;
+  }
+  return'';
+}
 function syncSearchBar(){searchBar.style.top=toolbar.classList.contains('visible')?'54px':'0'}
 function openSearch(){searchBar.classList.add('open');toolbar.classList.add('visible');progressTrack.classList.add('active');$('btn-search').classList.add('on');syncSearchBar();searchInput.focus();searchInput.select()}
 function closeSearch(){searchBar.classList.remove('open');$('btn-search').classList.remove('on');searchInput.value='';S.searchQuery='';S.searchResults=[];S.searchIdx=-1;clearHighlights();updateSearchCount()}
-function doSearch(){var q=searchInput.value.trim();S.searchQuery=q;if(!q){S.searchResults=[];S.searchIdx=-1;clearHighlights();updateSearchCount();return}var r=[],ql=q.toLowerCase();for(var i=0;i<S.chapters.length;i++){var t=S.chapters[i].content||'',tl=t.toLowerCase(),p=0;while((p=tl.indexOf(ql,p))!==-1){r.push({ch:i,pos:p});p+=q.length}}S.searchResults=r;S.searchIdx=r.length?0:-1;if(S.searchIdx>=0)navigateToResult();else{clearHighlights();updateSearchCount()}}
-function navigateToResult(){var r=S.searchResults[S.searchIdx];if(!r)return;var bl=contentInner.querySelector('[data-idx="'+r.ch+'"]');if(bl){applyHighlights();scrollToActive()}else{goToChapter(r.ch);requestAnimationFrame(function(){applyHighlights();scrollToActive()})}updateSearchCount()}
+function doSearch(){var q=searchInput.value.trim();S.searchQuery=q;if(!q){S.searchResults=[];S.searchIdx=-1;clearHighlights();updateSearchCount();return}var r=[],ql=q.toLowerCase();for(var i=0;i<S.chapters.length;i++){var t=getChText(S.chapters[i],i);var tl=t.toLowerCase(),p=0;while((p=tl.indexOf(ql,p))!==-1){r.push({ch:i,pos:p});p+=q.length}}S.searchResults=r;S.searchIdx=r.length?0:-1;if(S.searchIdx>=0)navigateToResult();else{clearHighlights();updateSearchCount()}}
+function navigateToResult(){var r=S.searchResults[S.searchIdx];if(!r)return;var bl=contentInner.querySelector('[data-idx="'+r.ch+'"]');if(bl){applyHighlights();scrollToActive()}else{goToChapter(r.ch,function(){applyHighlights();scrollToActive()})}updateSearchCount()}
 function applyHighlights(){clearHighlights();if(!S.searchQuery)return;var q2=S.searchQuery,blocks=contentInner.querySelectorAll('.ch-block');for(var bi=0;bi<blocks.length;bi++){var body=blocks[bi].querySelector('.ch-body');if(!body||body.textContent.toLowerCase().indexOf(q2)===-1)continue;var w=document.createTreeWalker(body,NodeFilter.SHOW_TEXT),ns=[];while(w.nextNode())ns.push(w.currentNode);for(var ni=0;ni<ns.length;ni++){var nd=ns[ni],t=nd.textContent,l=t.toLowerCase(),ql=q2.toLowerCase(),p=l.indexOf(ql);if(p===-1)continue;var f=document.createDocumentFragment(),la=0;while(p!==-1){f.appendChild(document.createTextNode(t.slice(la,p)));var m=document.createElement('mark');m.className='shl';m.textContent=t.slice(p,p+q2.length);f.appendChild(m);la=p+q2.length;p=l.indexOf(ql,la)}f.appendChild(document.createTextNode(t.slice(la)));nd.parentNode.replaceChild(f,nd)}}highlightActiveMark()}
 function clearHighlights(){contentInner.querySelectorAll('mark.shl').forEach(function(m){m.replaceWith(document.createTextNode(m.textContent))});contentInner.normalize()}
 function highlightActiveMark(){var r=S.searchResults[S.searchIdx];if(!r||r.ch!==S.currentChapter)return;var base=0;for(var i=0;i<r.ch;i++){for(var j=0;j<S.searchResults.length;j++){if(S.searchResults[j].ch===i)base++}}var idx=S.searchIdx-base;var ms=contentInner.querySelectorAll('mark.shl');if(idx>=0&&idx<ms.length){ms.forEach(function(m){m.classList.remove('act')});ms[idx].classList.add('act')}}
@@ -603,9 +734,70 @@ function searchNext(){if(!S.searchResults.length)return;S.searchIdx=(S.searchIdx
 function updateSearchCount(){searchCount.textContent=S.searchResults.length?(S.searchIdx+1)+'/'+S.searchResults.length:''}
 
 /* ===== TOC ===== */
-function buildTOC(){var el=$('sidebar-title');if(el)el.textContent=S.epubTitle||S.fileName.replace(/\.[^.]+$/,'');var el2=$('sidebar-info');if(el2)el2.textContent=S.chapters.length+' 章 · '+fmtSize(S.fileSize);if(S.toc&&S.toc.length){tocList.innerHTML=S.toc.map(function(t,i){var cls='toc-item'+(t.level===1?' toc-l1':t.level>=2?' toc-l2':'');return '<div class="'+cls+'" data-href="'+esc(t.href||'')+'" onclick="J.goToc('+i+')">'+esc(t.title||'')+'</div>'}).join('')}else{tocList.innerHTML=S.chapters.map(function(c,i){return '<div class="toc-item" data-i="'+i+'" onclick="J.go('+i+')">'+esc(c.title||'')+'</div>'}).join('')}}
-function highlightToc(){var curEl=null;if(S.toc&&S.toc.length){var chItem=S.chapters[S.currentChapter];var chHref=chItem?(chItem.href||'').split('#')[0]:'';tocList.querySelectorAll('.toc-item').forEach(function(el){var href=(el.dataset.href||'').split('#')[0];var match=chHref&&href===chHref;el.classList.toggle('toc-current',match);if(match)curEl=el})}else{tocList.querySelectorAll('.toc-item').forEach(function(el){var isActive=+el.dataset.i===S.currentChapter;el.classList.toggle('current',isActive);if(isActive)curEl=el})}if(curEl)curEl.scrollIntoView({block:'nearest',behavior:'smooth'})}
-function goToc(idx){if(!S.toc||!S.toc.length)return;var item=S.toc[idx];if(!item)return;var href=item.href||'';var chIdx=-1;if(href){var hrefBase=href.split('#')[0];for(var i=0;i<S.chapters.length;i++){var chHref=(S.chapters[i].href||'').split('#')[0];if(chHref===hrefBase){chIdx=i;break}}}if(chIdx<0)chIdx=Math.min(idx,S.chapters.length-1);goToChapter(chIdx);var anchor=href.split('#')[1];if(anchor){requestAnimationFrame(function(){var el=contentInner.querySelector('[id="'+anchor+'"]');if(el)contentEl.scrollTop=el.offsetTop-60})}}
+function buildTOC(){
+  var el=$('sidebar-title');if(el)el.textContent=S.epubTitle||S.fileName.replace(/\.[^.]+$/,'');
+  var el2=$('sidebar-info');if(el2)el2.textContent=S.chapters.length+' 章 · '+fmtSize(S.fileSize);
+  if(S.toc&&S.toc.length){
+    tocList.innerHTML=S.toc.map(function(t,i){
+      var html='<div class="toc-item'+(t.level===1?' toc-l1':t.level>=2?' toc-l2':'')+'" data-href="'+esc(t.href||'')+'" onclick="J.goToc('+i+')">'+esc(t.title||'')+'</div>';
+      var hrefBase=t.href?t.href.split('#')[0]:'';
+      if(hrefBase){
+        var ci=findChapterByHref(hrefBase);
+        if(ci>=0&&S.chapters[ci].html){
+          var re=/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi,m,skip=1,hCnt=0;
+          while((m=re.exec(S.chapters[ci].html))!==null){
+            var txt=m[2].replace(/<[^>]+>/g,'').trim();
+            if(!txt)continue;
+            if(skip>0){skip--;continue}
+            html+='<div class="toc-item toc-l2" onclick="J.goToHeading('+ci+','+hCnt+')">'+esc(txt)+'</div>';
+            hCnt++;
+          }
+        }
+      }
+      return html;
+    }).join('');
+  }else{
+    tocList.innerHTML=S.chapters.map(function(c,i){return '<div class="toc-item" data-i="'+i+'" onclick="J.go('+i+')">'+esc(c.title||'')+'</div>'}).join('');
+  }
+}
+function highlightToc(){
+  var curEl=null;
+  if(S.toc&&S.toc.length){
+    var chItem=S.chapters[S.currentChapter];
+    var chHref=chItem?(chItem.href||''):'';
+    tocList.querySelectorAll('.toc-item').forEach(function(el){
+      var href=el.dataset.href||'';
+      var match=chHref&&href&&hrefMatch(href,chHref);
+      el.classList.toggle('toc-current',match);
+      if(match)curEl=el;
+    });
+  }else{
+    tocList.querySelectorAll('.toc-item').forEach(function(el){
+      var isActive=+el.dataset.i===S.currentChapter;
+      el.classList.toggle('current',isActive);
+      if(isActive)curEl=el;
+    });
+  }
+  if(curEl)curEl.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function goToc(idx){
+  if(!S.toc||!S.toc.length)return;
+  var item=S.toc[idx];if(!item)return;
+  var href=item.href||'';
+  var chIdx=findChapterByHref(href);
+  /* 禁止用 TOC 序号硬顶 spine 序号：目录常含卷/插图等额外项，越往后偏差越大 */
+  if(chIdx<0){
+    toast('无法定位该章节');
+    return;
+  }
+  var anchor=href.indexOf('#')>=0?href.split('#')[1]:'';
+  goToChapter(chIdx,function(){
+    if(!anchor)return;
+    var safe=anchor.replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+    var el=contentInner.querySelector('[id="'+safe+'"]')||contentInner.querySelector('[name="'+safe+'"]');
+    if(el)scrollToElement(el,60);
+  });
+}
 
 /* ===== Save/Load Progress ===== */
 function saveProg(){try{var a=JSON.parse(localStorage.getItem('jd_p')||'{}');var pct=0;try{pct=Math.round(getAccurateProgress()*100)}catch(e){}a[S.fileName]={ch:S.currentChapter,offset:getChapterOffset(),pct:pct,ts:Date.now()};localStorage.setItem('jd_p',JSON.stringify(a))}catch(e){}}
@@ -615,8 +807,8 @@ function loadProg(n){try{return(JSON.parse(localStorage.getItem('jd_p')||'{}'))[
 function setupSettingsEvents(){
   on($('range-fs'),'input',function(e){S.fontSize=+e.target.value;applySettings();saveSettings()});
   on($('range-lh'),'input',function(e){S.lineHeight=+e.target.value;applySettings();saveSettings()});
-  document.querySelectorAll('.theme-toggle button').forEach(function(b){on(b,'click',function(){S.theme=b.dataset.t;applySettings();saveSettings()})});
   document.querySelectorAll('[data-pad]').forEach(function(b){on(b,'click',function(){S.padding=b.dataset.pad;applySettings();saveSettings()})});
+  document.querySelectorAll('[data-color]').forEach(function(b){on(b,'click',function(){S.textColor=b.getAttribute('data-color')||'';applySettings();saveSettings()})});
   on($('privacy-toggle'),'click',togglePrivacyMode);
   on($('cache-clear'),'click',clearCache);
   updateCacheStats();
@@ -823,7 +1015,7 @@ function webdavDownloadFile(item){
           parseEPUB(buf,function(result,err){
             if(err||!result){hideLoading();toast('EPUB 解析失败: '+(err||'未知错误'));return}
             S.rawText='';
-            S.chapters=result.chapters.map(function(ch){return{title:ch.title||'',content:ch.text||'',html:ch.html||''}});
+            S.chapters=result.chapters.map(function(ch){return{title:ch.title||'',content:ch.text||'',html:ch.html||'',href:ch.href||''}});
             S.epubCSS=result.epubCSS||'';
             S.epubTitle=result.title||item.name.replace(/\.[^.]+$/,'');
             S.toc=result.toc||null;
@@ -995,10 +1187,53 @@ function setupEvents(){
   setupSettingsEvents();
   on(window,'beforeunload',function(){stopReadingTimer();if(S.fileName)saveProg()});
   on(document,'visibilitychange',function(){if(document.hidden){if(reader.classList.contains('active'))stopReadingTimer()}else{if(reader.classList.contains('active'))startReadingTimer()}});
-  var tx=0,ty=0;on(contentEl,'touchstart',function(e){tx=e.touches[0].clientX;ty=e.touches[0].clientY;_touchTap=false;closeTip()},{passive:true});
-  var HIDE_THRESHOLD=50;on(contentEl,'touchmove',function(e){if(!S.chapters.length)return;var dy=e.touches[0].clientY-ty;if(dy<-HIDE_THRESHOLD&&(toolbar.classList.contains('visible')||progressTrack.classList.contains('active'))){toolbar.classList.remove('visible');progressTrack.classList.remove('active');syncSearchBar()}},{passive:true});
-  on(contentEl,'wheel',function(e){if(e.deltaY>0&&(toolbar.classList.contains('visible')||progressTrack.classList.contains('active'))){toolbar.classList.remove('visible');progressTrack.classList.remove('active');syncSearchBar()}},{passive:true});
-  function touchEndTap(e){if(!S.chapters.length)return;var dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;if(Math.abs(dx)<20&&Math.abs(dy)<20){var r=contentEl.getBoundingClientRect(),y=e.changedTouches[0].clientY-r.top;if(y>r.height*.5){_touchTap=true;var x=e.changedTouches[0].clientX-r.left;if(x<r.width*.15){goToChapter(Math.max(0,S.currentChapter-1))}else if(x>r.width*.85){goToChapter(Math.min(S.chapters.length-1,S.currentChapter+1))}}}}on(contentEl,'touchend',touchEndTap,{passive:true});
+  var tx=0,ty=0,_lastTapTs=0;
+  on(contentEl,'touchstart',function(e){
+    /* 多指手势（捏合缩放）直接拦截，避免滑动翻页时误触发 */
+    if(e.touches.length>1){e.preventDefault();return}
+    tx=e.touches[0].clientX;ty=e.touches[0].clientY;_touchTap=false;closeTip();
+  },{passive:false});
+  var HIDE_THRESHOLD=50;
+  on(contentEl,'touchmove',function(e){
+    if(e.touches.length>1){e.preventDefault();return}
+    if(!S.chapters.length)return;
+    var dy=e.touches[0].clientY-ty;
+    if(dy<-HIDE_THRESHOLD&&(toolbar.classList.contains('visible')||progressTrack.classList.contains('active'))){
+      toolbar.classList.remove('visible');progressTrack.classList.remove('active');syncSearchBar();
+    }
+  },{passive:false});
+  on(contentEl,'wheel',function(e){
+    /* 桌面触控板/Ctrl+滚轮缩放 */
+    if(e.ctrlKey){e.preventDefault();return}
+    if(e.deltaY>0&&(toolbar.classList.contains('visible')||progressTrack.classList.contains('active'))){
+      toolbar.classList.remove('visible');progressTrack.classList.remove('active');syncSearchBar();
+    }
+  },{passive:false});
+  /* 阻止双击放大：两次轻触间隔过短时吞掉第二次 */
+  on(contentEl,'touchend',function(e){
+    var now=Date.now();
+    if(now-_lastTapTs<320){e.preventDefault();_lastTapTs=0;return}
+    _lastTapTs=now;
+  },{passive:false});
+  function touchEndTap(e){
+    if(!S.chapters.length)return;
+    if(e.changedTouches.length!==1)return;
+    var dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
+    if(Math.abs(dx)<20&&Math.abs(dy)<20){
+      var r=contentEl.getBoundingClientRect(),y=e.changedTouches[0].clientY-r.top;
+      if(y>r.height*.5){
+        _touchTap=true;
+        var x=e.changedTouches[0].clientX-r.left;
+        if(x<r.width*.15){goToChapter(Math.max(0,S.currentChapter-1))}
+        else if(x>r.width*.85){goToChapter(Math.min(S.chapters.length-1,S.currentChapter+1))}
+      }
+    }
+  }
+  on(contentEl,'touchend',touchEndTap,{passive:true});
+  /* iOS Safari 手势事件 */
+  on(document,'gesturestart',function(e){e.preventDefault()},{passive:false});
+  on(document,'gesturechange',function(e){e.preventDefault()},{passive:false});
+  on(document,'gestureend',function(e){e.preventDefault()},{passive:false});
   on(document,'keydown',function(e){if(e.key==='Escape')closeAllPanels();if((e.ctrlKey||e.metaKey)&&e.key==='f'){e.preventDefault();openSearch()}});
   on(document,'click',function(e){var tip=document.querySelector('.ft-tip.show');if(tip&&!tip.contains(e.target)&&!e.target.closest('a[epub\\:type="noteref"]')){closeTip()}});
 }
@@ -1023,11 +1258,68 @@ function updateCacheStats(){var l=getLib(),t=0;for(var i=0;i<l.length;i++)t+=l[i
 function clearCache(){if(!confirm('确定清除所有书籍缓存？需要重新导入才能阅读。'))return;openDB(function(db){if(!db){toast('数据库不可用');return}var tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).clear();tx.oncomplete=function(){saveLib([]);renderBookshelf();updateCacheStats();toast('缓存已清除')}})}
 function toggleTheme(){S.theme=S.theme==='light'?'dark':'light';applySettings();saveSettings()}
 function closeAllPanels(){togglePanel('sidebar',false);togglePanel('settings',false);if(searchBar.classList.contains('open'))closeSearch()}
-function goToChapter(idx){if(idx<0||idx>=S.chapters.length)return;togglePanel('sidebar',false);toolbar.classList.remove('visible');progressTrack.classList.remove('active');syncSearchBar();initSeamless(idx,0);schedulePreload()}
-function processFootnotes(){var ftMap={};var allAsides=contentInner.querySelectorAll('aside');allAsides.forEach(function(aside){var epubType=aside.getAttribute('epub:type');if(epubType==='footnote'){var id=aside.getAttribute('id');if(id){var li=aside.querySelector('.duokan-footnote-item,li');ftMap[id]=li?li.textContent.trim():aside.textContent.trim();aside.classList.add('footnote-hidden')}}});var tipEl=document.createElement('div');tipEl.className='ft-tip';tipEl.innerHTML='<div class="ft-tip-content"></div>';document.body.appendChild(tipEl);var tipContent=tipEl.querySelector('.ft-tip-content');var activeRef=null;function showTip(ref,id,text){var rect=ref.getBoundingClientRect();tipContent.textContent=text;tipEl.classList.add('show');var tw=tipEl.offsetWidth;var th=tipEl.offsetHeight;var left=rect.left+(rect.width-tw)/2;var top=rect.bottom+8;if(left<8)left=8;if(left+tw>window.innerWidth-8)left=window.innerWidth-tw-8;top=rect.bottom+8;if(top+th>window.innerHeight-8)top=rect.top-th-8;tipEl.style.left=left+'px';tipEl.style.top=top+'px';activeRef=ref}function hideTip(){tipEl.classList.remove('show');activeRef=null}var allAnchors=contentInner.querySelectorAll('a');allAnchors.forEach(function(a){var epubType=a.getAttribute('epub:type');if(epubType==='noteref'){var href2=a.getAttribute('href');if(!href2||!href2.startsWith('#'))return;var id2=href2.slice(1);if(!ftMap[id2])return;a.style.cursor='pointer';a.setAttribute('data-ft-id',id2);a.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();if(activeRef===a){hideTip();return}showTip(a,id2,ftMap[id2])})}});return{map:ftMap,hideTip:hideTip,showTip:showTip}}
-var _ftHandle=null;
-function closeTip(){if(_ftHandle)_ftHandle.hideTip()}
+function goToChapter(idx,after){
+  if(idx<0||idx>=S.chapters.length)return;
+  togglePanel('sidebar',false);
+  toolbar.classList.remove('visible');
+  progressTrack.classList.remove('active');
+  syncSearchBar();
+  /* after 在布局稳定并滚到章节后执行（锚点/书签偏移） */
+  initSeamless(idx,0,after);
+}
+var _ftMap=null,_ftTipEl=null,_ftActiveRef=null,_epubHandlersSetup=false;
+function processFootnotes(){
+  if(!_ftTipEl){
+    _ftTipEl=document.createElement('div');_ftTipEl.className='ft-tip';
+    _ftTipEl.innerHTML='<div class="ft-tip-content"></div>';
+    document.body.appendChild(_ftTipEl);
+    on(contentInner,'click',function(e){
+      var a=e.target.closest('a[epub\\:type="noteref"]');
+      if(!a)return;
+      var href=a.getAttribute('href');
+      if(!href||!href.startsWith('#'))return;
+      var id=href.slice(1);var text=_ftMap?_ftMap[id]:null;
+      if(!text)return;
+      e.preventDefault();e.stopImmediatePropagation();
+      if(_ftActiveRef===a){_ftTipEl.classList.remove('show');_ftActiveRef=null;return}
+      _showFtTip(a,text);
+    });
+  }
+  _ftMap={};
+  var allAsides=contentInner.querySelectorAll('aside');
+  allAsides.forEach(function(aside){
+    if(aside.getAttribute('epub:type')==='footnote'){
+      var id=aside.getAttribute('id');
+      if(id){var li=aside.querySelector('.duokan-footnote-item,li');_ftMap[id]=li?li.textContent.trim():aside.textContent.trim();aside.classList.add('footnote-hidden')}
+    }
+  });
+  return{map:_ftMap,hideTip:function(){if(_ftTipEl)_ftTipEl.classList.remove('show');_ftActiveRef=null},showTip:_showFtTip};
+}
+function _showFtTip(ref,text){
+  var tc=_ftTipEl.querySelector('.ft-tip-content');
+  tc.textContent=text;_ftTipEl.classList.add('show');
+  var rect=ref.getBoundingClientRect();
+  var tw=_ftTipEl.offsetWidth,th=_ftTipEl.offsetHeight;
+  var left=rect.left+(rect.width-tw)/2;
+  var top=rect.bottom+8;
+  if(left<8)left=8;if(left+tw>window.innerWidth-8)left=window.innerWidth-tw-8;
+  if(top+th>window.innerHeight-8)top=rect.top-th-8;
+  _ftTipEl.style.left=left+'px';_ftTipEl.style.top=top+'px';
+  _ftActiveRef=ref;
+}
+function closeTip(){if(_ftTipEl){_ftTipEl.classList.remove('show');_ftActiveRef=null}}
+function _rebuildFtMap(){
+  _ftMap={};
+  contentInner.querySelectorAll('aside').forEach(function(aside){
+    if(aside.getAttribute('epub:type')==='footnote'){
+      var id=aside.getAttribute('id');
+      if(id){var li=aside.querySelector('.duokan-footnote-item,li');_ftMap[id]=li?li.textContent.trim():aside.textContent.trim();aside.classList.add('footnote-hidden')}
+    }
+  });
+}
 function setupEpubLinkHandler(){
+  if(_epubHandlersSetup)return;
+  _epubHandlersSetup=true;
   on(contentInner,'click',function(e){
     var a=e.target.closest('a');
     if(!a)return;
@@ -1035,25 +1327,41 @@ function setupEpubLinkHandler(){
     if(!href)return;
     if(href.startsWith('#')){
       var id=href.slice(1);
-      var el=contentInner.querySelector('[id="'+id+'"]');
-      if(el){e.preventDefault();contentEl.scrollTop=el.offsetTop-60}
+      var el=contentInner.querySelector('[id="'+id+'"]')||contentInner.querySelector('[name="'+id+'"]');
+      if(el){e.preventDefault();scrollToElement(el,60)}
       return;
     }
     if(/^(https?:|javascript:|data:)/i.test(href)){e.preventDefault();return}
-    var hrefBase=href.split('#')[0];
     var anchor=href.split('#')[1]||'';
-    for(var i=0;i<S.chapters.length;i++){
-      var chHref=(S.chapters[i].href||'').split('#')[0];
-      if(chHref===hrefBase||chHref.endsWith('/'+hrefBase)||hrefBase.endsWith('/'+chHref)){
-        e.preventDefault();
-        goToChapter(i);
-        if(anchor){requestAnimationFrame(function(){var el2=contentInner.querySelector('[id="'+anchor+'"]');if(el2)contentEl.scrollTop=el2.offsetTop-60})}
-        return;
-      }
+    var chIdx=findChapterByHref(href);
+    if(chIdx>=0){
+      e.preventDefault();
+      goToChapter(chIdx,function(){
+        if(!anchor)return;
+        var safe=anchor.replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+        var el2=contentInner.querySelector('[id="'+safe+'"]')||contentInner.querySelector('[name="'+safe+'"]');
+        if(el2)scrollToElement(el2,60);
+      });
+      return;
     }
     e.preventDefault();
   });
 }
-window.J={go:function(ch,off){goToChapter(ch);if(off)requestAnimationFrame(function(){var bl=contentInner.querySelector('[data-idx="'+ch+'"]');if(bl)contentEl.scrollTop=bl.offsetTop+off})},delBm:deleteBookmark,goToc:goToc,closeTip:closeTip};
+window.J={
+  go:function(ch,off){
+    goToChapter(ch,function(){
+      if(off)scrollToChapter(ch,off);
+    });
+  },
+  delBm:deleteBookmark,
+  goToc:goToc,
+  closeTip:closeTip,
+  goToHeading:function(chIdx,hIdx){
+    goToChapter(chIdx,function(){
+      var el=contentInner.querySelector('[id="ch-'+chIdx+'-h-'+hIdx+'"]');
+      if(el)scrollToElement(el,60);
+    });
+  }
+};
 
 })();

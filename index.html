@@ -2,7 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>简读</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -92,8 +94,16 @@
   <div class="settings-title">阅读设置</div>
   <div class="settings-group"><div class="settings-label">字号 <span id="val-fs">18px</span></div><input type="range" id="range-fs" min="14" max="28" value="18" step="1"></div>
   <div class="settings-group"><div class="settings-label">行高 <span id="val-lh">1.85</span></div><input type="range" id="range-lh" min="1.4" max="2.6" value="1.85" step="0.05"></div>
-  <div class="settings-group"><div class="settings-label">主题</div><div class="theme-toggle"><button data-t="light" class="active">日间</button><button data-t="dark">夜间</button></div></div>
   <div class="settings-group"><div class="settings-label">边距</div><div class="settings-row"><button data-pad="narrow">窄</button><button data-pad="normal" class="active">标准</button><button data-pad="wide">宽</button></div></div>
+  <div class="settings-group"><div class="settings-label">正文字色</div><div class="settings-row color-row">
+    <button type="button" class="color-swatch active" data-color="" title="默认" style="background:var(--text)"></button>
+    <button type="button" class="color-swatch" data-color="#3a3028" title="深褐" style="background:#3a3028"></button>
+    <button type="button" class="color-swatch" data-color="#1a1a1a" title="纯黑" style="background:#1a1a1a"></button>
+    <button type="button" class="color-swatch" data-color="#2c3e50" title="墨蓝" style="background:#2c3e50"></button>
+    <button type="button" class="color-swatch" data-color="#3d4f3d" title="墨绿" style="background:#3d4f3d"></button>
+    <button type="button" class="color-swatch" data-color="#5c4a3a" title="咖啡" style="background:#5c4a3a"></button>
+    <button type="button" class="color-swatch" data-color="#dcd6cc" title="浅灰" style="background:#dcd6cc"></button>
+  </div></div>
   <div class="settings-group stats-group">
     <div class="settings-label">阅读统计</div>
     <div class="stats-row"><span>总阅读</span><span id="stats-total">0 分钟</span></div>

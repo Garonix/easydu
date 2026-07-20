@@ -13,8 +13,13 @@
 --border:#333338;--toolbar-bg:rgba(26,26,30,.92);
 --scrollbar-thumb:rgba(255,255,255,.08);--scrollbar-thumb-hover:rgba(255,255,255,.18);
 }
-html,body{height:100%;overflow:hidden}
-body{font-family:var(--font-body);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;transition:background .35s,color .35s}
+html,body{height:100%;overflow:hidden;touch-action:manipulation}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;transition:background .35s,color .35s;overscroll-behavior:none}
+/* 阅读区：仅允许纵向滚动，禁止双指缩放/横向 pan */
+#content,#content-inner{touch-action:pan-y;-ms-touch-action:pan-y}
+#content-inner{color:var(--reader-text,var(--text))}
+input,textarea,button,select{-webkit-user-select:auto;user-select:auto}
 
 /* ===== Bookshelf ===== */
 #bookshelf{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);z-index:10;transition:opacity .4s,transform .4s}
@@ -117,11 +122,12 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);-webkit
 .settings-row{display:flex;gap:8px}
 .settings-row button{flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;font-size:.85rem;transition:all .2s}
 .settings-row button:hover,.settings-row button.active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.color-row{flex-wrap:wrap;gap:10px}
+.color-swatch{flex:0 0 auto!important;width:32px;height:32px;padding:0!important;border-radius:50%!important;border:2px solid var(--border)!important;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.color-swatch:hover{transform:scale(1.08)}
+.color-swatch.active{border-color:var(--accent)!important;box-shadow:0 0 0 2px var(--accent-soft),inset 0 0 0 1px rgba(0,0,0,.06);transform:scale(1.1)}
 input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:var(--border);outline:none}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer}
-.theme-toggle{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden}
-.theme-toggle button{flex:1;padding:10px;border:none;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;font-size:.85rem;transition:all .2s}
-.theme-toggle button.active{background:var(--accent);color:#fff}
 
 /* Content */
 #content{flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;-ms-overflow-style:none}
@@ -140,7 +146,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 #content-inner td,#content-inner th{border:1px solid var(--border);padding:8px 12px}
 
 /* EPUB content isolation — resets app defaults, lets EPUB CSS take over */
-#content-inner .ch-body[data-epub]{all:initial;display:block;word-wrap:break-word;overflow-wrap:break-word;color:var(--text);font-family:var(--font-body);font-size:18px;line-height:1.85}
+#content-inner .ch-body[data-epub]{all:initial;display:block;word-wrap:break-word;overflow-wrap:break-word;color:var(--reader-text,var(--text));font-family:var(--font-body);font-size:18px;line-height:1.85}
 /* Force project font settings on body text elements */
 #content-inner .ch-body[data-epub] p,
 #content-inner .ch-body[data-epub] div,
@@ -150,7 +156,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 #content-inner .ch-body[data-epub] th,
 #content-inner .ch-body[data-epub] blockquote,
 #content-inner .ch-body[data-epub] dd,
-#content-inner .ch-body[data-epub] dt{font-family:var(--font-body)!important;font-size:inherit!important;line-height:inherit!important}
+#content-inner .ch-body[data-epub] dt{font-family:var(--font-body)!important;font-size:inherit!important;line-height:inherit!important;color:inherit!important}
 /* Safety defaults — always apply, even when EPUB CSS is present */
 #content-inner .ch-body[data-epub] img{max-width:100%;max-height:70vh;height:auto;object-fit:contain}
 #content-inner .ch-body[data-epub] a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
