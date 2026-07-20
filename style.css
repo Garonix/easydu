@@ -89,13 +89,10 @@ input,textarea,button,select{-webkit-user-select:auto;user-select:auto}
 .sidebar-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
 .stab{flex:1;padding:10px;border:none;background:transparent;color:var(--text-sec);cursor:pointer;font-family:inherit;font-size:.85rem;border-bottom:2px solid transparent;transition:all .2s}
 .stab.active{color:var(--accent);border-bottom-color:var(--accent)}
-.stab-panel{display:none;flex:1;overflow-y:auto}
+.stab-panel{display:none;flex:1;overflow-y:auto;min-height:0}
 .stab-panel.active{display:block}
-#toc-list{padding:8px 10px}
-.toc-item{padding:10px 12px;border-radius:8px;cursor:pointer;font-size:.88rem;transition:background .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.toc-item:hover{background:var(--accent-soft)}
-.toc-item.current{background:var(--accent-soft);color:var(--accent);font-weight:700}
-.toc-item.current::before{content:'';display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px;vertical-align:-2px;margin-right:8px}
+#toc-panel.stab-panel.active{display:flex;flex-direction:column;overflow:hidden}
+#toc-list{padding:0;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
 #bm-list{padding:8px 10px}
 .bm-empty{padding:24px;text-align:center;font-size:.85rem;color:var(--text-sec)}
 .bm-item{padding:12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;position:relative}
@@ -224,13 +221,17 @@ mark.shl.act{background:rgba(212,160,88,.7);outline:2px solid var(--accent);bord
 .epub-content .ft-inline-footnote{font-size:.85rem;color:var(--text-sec);background:var(--accent-soft);border-left:3px solid var(--accent);padding:8px 12px;margin:12px 0;border-radius:0 6px 6px 0}
 .epub-content .ft-inline-footnote:empty{display:none}
 
-/* ===== TOC Nested ===== */
-.toc-item{padding:6px 0;border-bottom:none;font-size:.88rem;cursor:pointer;transition:color .15s}
-.toc-item:hover{color:var(--accent)}
-.toc-item.toc-l1{padding-left:16px;font-size:.82rem;color:var(--text-sec)}
-.toc-item.toc-l2{padding-left:32px;font-size:.78rem;color:var(--text-sec)}
-.toc-item.toc-current{color:var(--accent);font-weight:600}
-#toc-panel .toc-empty{color:var(--text-sec);font-size:.85rem;padding:16px 0}
+/* ===== TOC Nested + 虚拟列表 ===== */
+.toc-virt{position:relative;width:100%}
+.toc-spacer{width:1px;pointer-events:none}
+.toc-window{position:absolute;left:0;right:0;top:0}
+.toc-item{position:absolute;left:0;right:0;box-sizing:border-box;padding:0 12px;display:flex;align-items:center;border-bottom:none;font-size:.88rem;cursor:pointer;transition:color .15s,background .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toc-item:hover{color:var(--accent);background:var(--accent-soft)}
+.toc-item.toc-l1{padding-left:24px;font-size:.82rem;color:var(--text-sec)}
+.toc-item.toc-l2{padding-left:36px;font-size:.78rem;color:var(--text-sec)}
+.toc-item.toc-current,.toc-item.current{color:var(--accent);font-weight:600;background:var(--accent-soft)}
+.toc-item.current::before{content:'';display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px;margin-right:8px;flex-shrink:0}
+#toc-panel .toc-empty{color:var(--text-sec);font-size:.85rem;padding:16px 12px}
 
 /* ===== Import Dropdown ===== */
 .import-dropdown{position:relative}
