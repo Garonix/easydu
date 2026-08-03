@@ -51,8 +51,11 @@ input,textarea,button,select{-webkit-user-select:auto;user-select:auto}
 .bs-card-info{padding:10px 12px 12px}
 .bs-card-name{font-size:.82rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px}
 .bs-card-meta{font-size:.68rem;color:var(--text-sec)}
-.bs-card-del{position:absolute;top:6px;right:6px;width:24px;height:24px;border:none;border-radius:6px;background:rgba(0,0,0,.4);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
-.bs-card:hover .bs-card-del{opacity:1}
+.bs-card-del,.bs-card-download{position:absolute;top:6px;width:24px;height:24px;border:none;border-radius:6px;background:rgba(0,0,0,.4);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
+.bs-card-del{right:6px}
+.bs-card-download{right:36px}
+.bs-card:hover .bs-card-del,.bs-card:hover .bs-card-download,.bs-card:focus-within .bs-card-del,.bs-card:focus-within .bs-card-download{opacity:1}
+.bs-card-download:hover{background:var(--accent)}
 
 /* ===== Loading ===== */
 #loading{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:20;background:var(--bg)}
@@ -143,7 +146,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 #content-inner td,#content-inner th{border:1px solid var(--border);padding:8px 12px}
 
 /* EPUB content isolation — resets app defaults, lets EPUB CSS take over */
-#content-inner .ch-body[data-epub]{all:initial;display:block;word-wrap:break-word;overflow-wrap:break-word;color:var(--reader-text,var(--text));font-family:var(--font-body);font-size:18px;line-height:1.85}
+#content-inner .ch-body[data-epub]{all:initial;display:block;word-wrap:break-word;overflow-wrap:break-word;color:var(--reader-text,var(--text));font-family:var(--font-body);font-size:18px;line-height:1.85;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 /* Force project font settings on body text elements */
 #content-inner .ch-body[data-epub] p,
 #content-inner .ch-body[data-epub] div,
@@ -205,6 +208,7 @@ mark.shl.act{background:rgba(212,160,88,.7);outline:2px solid var(--accent);bord
 @media(max-width:600px){
   #content-inner{padding:40px 18px 80px;font-size:16px}
   .bs-grid{grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:14px;padding:16px}
+  .bs-card-del,.bs-card-download{opacity:.88}
   #sidebar{width:260px}#settings{width:260px}
 }
 @media(min-width:1024px)and(orientation:landscape){

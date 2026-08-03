@@ -86,6 +86,7 @@ function dbSave(name,data,cb){
       epubCSS:data.epubCSS||'',
       toc:data.toc||null,
       epubTitle:data.epubTitle||'',
+      source:data.source||null,
       chapters:null,
       chaptersMeta:null,
       v:useSplit?2:1
@@ -615,7 +616,8 @@ function applySettings(){
 /* ===== Bookshelf UI ===== */
 function renderBookshelf(){
   var lib=getLib(),grid=$('bs-grid'),empty=$('bs-empty');
-  var visibleLib=lib.filter(function(b){return!b.pv});
+  /* 普通与隐私书架是两个视图，私密书不会在普通模式中露出。 */
+  var visibleLib=lib.filter(function(b){return!!b.pv===S.privacyMode});
   if(!visibleLib.length){grid.style.display='none';empty.style.display='flex';return}
   grid.style.display='grid';empty.style.display='none';
   visibleLib.sort(function(a,b){return(b.ts||0)-(a.ts||0)});
@@ -634,6 +636,7 @@ function renderBookshelf(){
       '<div class="bs-card-pbar"><div class="bs-card-pfill" style="width:'+pct+'%"></div></div></div>' +
       '<div class="bs-card-info"><div class="bs-card-name" title="'+esc(b.n)+'">'+esc(title)+'</div>' +
       '<div class="bs-card-meta">'+meta+'</div></div>' +
+      '<button class="bs-card-download" title="下载书籍"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></button>' +
       '<button class="bs-card-del" title="删除"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';
   }).join('');
 }
@@ -676,12 +679,12 @@ function handleEPUB(f){
     showLoading('正在解析章节...');
     parseEPUB(e.target.result,function(result,err){
       if(err||!result){hideLoading();toast('EPUB 解析失败: '+(err||'未知错误'));return}
-      finishEpubImport(f.name,f.size,result);
+      finishEpubImport(f.name,f.size,result,f);
     });
   };
   rd.readAsArrayBuffer(f);
 }
-function finishEpubImport(name,size,result){
+function finishEpubImport(name,size,result,source){
   S.rawText='';
   S.epubCSS=result.epubCSS||'';
   S.epubTitle=result.title||name.replace(/\.[^.]+$/,'');
@@ -699,7 +702,7 @@ function finishEpubImport(name,size,result){
       S.chapters[i]._sanitized=true;
     }
     var cv=result.cover||generateCoverDataUrl(name);
-    var saveData={chapters:clean,type:'epub',size:size,cover:null,epubCSS:S.epubCSS,toc:S.toc,epubTitle:S.epubTitle};
+    var saveData={chapters:clean,type:'epub',size:size,cover:null,epubCSS:S.epubCSS,toc:S.toc,epubTitle:S.epubTitle,source:source||null};
     var doSave=function(c){
       saveData.cover=c;
       _idbPersistReady=false;
@@ -808,6 +811,35 @@ function deleteBook(name){
   try{var p=JSON.parse(localStorage.getItem('jd_p')||'{}');delete p[name];localStorage.setItem('jd_p',JSON.stringify(p))}catch(e){console.warn('清除进度失败',e)}
   try{localStorage.removeItem('jd_bm_'+name)}catch(e){console.warn('清除书签失败',e)}
   renderBookshelf();toast('已从书架移除');
+}
+function triggerDownload(blob,name){
+  var url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=name;a.style.display='none';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(url)},1000);
+}
+function downloadBook(name){
+  dbLoad(name,function(data){
+    if(!data){toast('书籍数据已失效，请重新导入');return}
+    if(data.source instanceof Blob){triggerDownload(data.source,name);toast('已开始下载');return}
+    if(data.type!=='epub'){
+      triggerDownload(new Blob([data.text||''],{type:'text/plain;charset=utf-8'}),name);
+      toast('已开始下载');return;
+    }
+    /* 老版本未保存原始 EPUB 时，仍可将缓存中的章节正文导出为 TXT。 */
+    var exportText=function(chapters){
+      var parts=(chapters||[]).map(function(ch){
+        var text=ch.text||ch.content||'';
+        if(!text&&ch.html){try{text=new DOMParser().parseFromString(ch.html,'text/html').body.textContent||''}catch(e){text=''}}
+        return(ch.title?ch.title+'\n\n':'')+text;
+      });
+      triggerDownload(new Blob([parts.join('\n\n')],{type:'text/plain;charset=utf-8'}),name.replace(/\.[^.]+$/,'.txt'));
+      toast('原始 EPUB 未保留，已导出 TXT');
+    };
+    if(data.chapters&&data.chapters.length){exportText(data.chapters);return}
+    var count=data.chaptersMeta?data.chaptersMeta.length:0,indices=[];
+    for(var i=0;i<count;i++)indices.push(i);
+    dbLoadChapters(name,indices,exportText);
+  });
 }
 function processContent(){
   S.storeMode='inline';
@@ -1311,6 +1343,24 @@ function goToc(idx){
 function saveProg(){try{var a=JSON.parse(localStorage.getItem('jd_p')||'{}');var pct=0;try{pct=Math.round(getAccurateProgress()*100)}catch(e){}a[S.fileName]={ch:S.currentChapter,offset:getChapterOffset(),pct:pct,ts:Date.now()};localStorage.setItem('jd_p',JSON.stringify(a))}catch(e){}}
 function loadProg(n){try{return(JSON.parse(localStorage.getItem('jd_p')||'{}'))[n]||null}catch(e){return null}}
 
+/* 移动端旋转会重排章节高度；用文本进度而非旧像素 scrollTop 恢复位置。 */
+var _viewportProgress=null,_viewportRestoreTimer=null;
+function preserveReaderViewport(){
+  if(!reader.classList.contains('active')||!S.chapters.length)return;
+  if(_viewportProgress===null){
+    updateReadingChapter();
+    _viewportProgress=getAccurateProgress();
+  }
+  if(_viewportRestoreTimer)clearTimeout(_viewportRestoreTimer);
+  _viewportRestoreTimer=setTimeout(function(){
+    var pct=_viewportProgress;
+    _viewportProgress=null;_viewportRestoreTimer=null;
+    if(pct===null||!reader.classList.contains('active'))return;
+    applySettings();
+    requestAnimationFrame(function(){requestAnimationFrame(function(){jumpToPercent(pct);updateProgress();saveProg()})});
+  },180);
+}
+
 /* ===== Events ===== */
 function setupSettingsEvents(){
   on($('range-fs'),'input',function(e){S.fontSize=+e.target.value;applySettings();saveSettings()});
@@ -1513,6 +1563,7 @@ function webdavDownloadFile(item){
   }).then(function(buf){
     var ext=webdavGetExt(item.name);
     var fileType=(ext==='md'||ext==='markdown')?'md':ext;
+    var source=new Blob([buf],{type:ext==='epub'?'application/epub+zip':'text/plain'});
     S.fileName=item.name;
     S.fileSize=item.size;
     S.fileType=fileType;
@@ -1522,7 +1573,7 @@ function webdavDownloadFile(item){
         if(ext==='epub'){
           parseEPUB(buf,function(result,err){
             if(err||!result){hideLoading();toast('EPUB 解析失败: '+(err||'未知错误'));return}
-            finishEpubImport(item.name,item.size,result);
+            finishEpubImport(item.name,item.size,result,source);
           });
         }else{
           S.rawText=decodeBuffer(buf);
@@ -1622,7 +1673,7 @@ function webdavLogin(){
   });
 }
 function setupEvents(){
-  on($('bs-main'),'click',function(e){var c=e.target.closest('.bs-card');if(!c)return;var n=c.dataset.name;if(!n)return;if(e.target.closest('.bs-card-del')){deleteBook(n)}else{loadBookFromShelf(n)}});
+  on($('bs-main'),'click',function(e){var c=e.target.closest('.bs-card');if(!c)return;var n=c.dataset.name;if(!n)return;if(e.target.closest('.bs-card-del')){deleteBook(n)}else if(e.target.closest('.bs-card-download')){downloadBook(n)}else{loadBookFromShelf(n)}});
   on($('bs-import'),'click',function(e){
     e.stopPropagation();
     importDropdownMenu.classList.toggle('show');
@@ -1684,6 +1735,9 @@ function setupEvents(){
   on(searchInput,'keydown',function(e){if(e.key==='Enter'){e.shiftKey?searchPrev():searchNext()}if(e.key==='Escape')closeSearch()});
   document.querySelectorAll('.stab').forEach(function(b){on(b,'click',function(){document.querySelectorAll('.stab').forEach(function(x){x.classList.remove('active')});document.querySelectorAll('.stab-panel').forEach(function(x){x.classList.remove('active')});b.classList.add('active');var p=$(b.dataset.tab==='toc'?'toc-panel':'bm-panel');if(p)p.classList.add('active')})});
   setupSettingsEvents();
+  on(window,'orientationchange',preserveReaderViewport);
+  on(window,'resize',preserveReaderViewport);
+  if(window.visualViewport)on(window.visualViewport,'resize',preserveReaderViewport);
   on(window,'beforeunload',function(){stopReadingTimer();if(S.fileName)saveProg()});
   on(document,'visibilitychange',function(){if(document.hidden){if(reader.classList.contains('active'))stopReadingTimer()}else{if(reader.classList.contains('active'))startReadingTimer()}});
   var tx=0,ty=0,_lastTapTs=0;
@@ -1753,7 +1807,7 @@ function tickReading(){if(!_rs)return;var now=Date.now(),elapsed=Math.floor((now
 function updateToolbarTime(){}
 function startReadingTimer(){stopReadingTimer();_rs=Date.now();_rt=setInterval(tickReading,60000);_rtSec=setInterval(updateToolbarTime,10000);var s=getStats();s.sessions++;saveStats(s);updateStatsDisplay();updateToolbarTime()}
 function stopReadingTimer(){if(_rt){clearInterval(_rt);_rt=null}if(_rtSec){clearInterval(_rtSec);_rtSec=null}tickReading();_rs=0;updateToolbarTime()}
-function updateCacheStats(){var l=getLib(),t=0;for(var i=0;i<l.length;i++)t+=l[i].s||0;$('cache-info').textContent='缓存 '+l.length+' 本书，占用 '+fmtSize(t)}
+function updateCacheStats(){var l=getLib().filter(function(b){return!!b.pv===S.privacyMode}),t=0;for(var i=0;i<l.length;i++)t+=l[i].s||0;$('cache-info').textContent='缓存 '+l.length+' 本书，占用 '+fmtSize(t)}
 function clearBookStorage(){
   /* 仅清书籍相关 localStorage：书架、进度、书签；不动设置/隐私/统计/WebDAV */
   try{localStorage.removeItem('jd_lib')}catch(e){}
