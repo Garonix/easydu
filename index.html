@@ -33,8 +33,21 @@
           </button>
         </div>
       </div>
+      <button type="button" class="bs-title" id="bs-title" title="连续点击五次切换隐藏书架" aria-label="简读，连续点击五次切换隐藏书架">简读<span class="bs-subtitle"> · 书架</span></button>
     </div>
-    <div class="bs-title">简读<span class="bs-subtitle"> · 书架</span></div>
+    <div class="bs-header-center">
+      <div class="bs-library-tools" id="bs-library-tools">
+        <label class="bs-search" for="bs-search-input">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.2" y2="16.2"/></svg>
+          <input type="search" id="bs-search-input" placeholder="搜索书架" autocomplete="off">
+        </label>
+        <select id="bs-sort" aria-label="书架排序">
+          <option value="recent">最近阅读</option>
+          <option value="title">书名排序</option>
+          <option value="progress">阅读进度</option>
+        </select>
+      </div>
+    </div>
     <div class="bs-header-right">
       <button class="bs-icon-btn" id="bs-theme-btn" title="切换主题">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -110,10 +123,6 @@
     <div class="stats-row"><span>今日</span><span id="stats-today">0 分钟</span></div>
     <div class="stats-row"><span>本书</span><span id="stats-book">0 分钟</span></div>
   </div>
-  <div class="settings-group">
-    <div class="settings-label">隐私模式</div>
-    <button class="privacy-toggle-btn" id="privacy-toggle">开启</button>
-  </div>
   <div class="settings-group cache-group">
     <div class="settings-label">缓存管理</div>
     <div class="cache-info" id="cache-info"></div>
@@ -125,11 +134,11 @@
 <input type="file" id="file-input" accept=".txt,.md,.markdown,.epub" hidden>
 
 <!-- WebDAV 模态框 -->
-<div class="webdav-modal" id="webdav-modal">
-  <div class="webdav-modal-content">
+<div class="webdav-modal" id="webdav-modal" role="dialog" aria-modal="true" aria-labelledby="webdav-modal-title" aria-hidden="true">
+  <div class="webdav-modal-content" tabindex="-1">
     <div class="webdav-modal-header">
       <h3 id="webdav-modal-title">远程上传</h3>
-      <button class="webdav-modal-close" id="webdav-modal-close">&times;</button>
+      <button type="button" class="webdav-modal-close" id="webdav-modal-close" aria-label="关闭远程上传">&times;</button>
     </div>
     
     <!-- 地址输入步骤 -->
@@ -138,7 +147,7 @@
         <label for="webdav-url">服务器地址</label>
         <input type="url" id="webdav-url" placeholder="https://example.com/dav/" autocomplete="url">
       </div>
-      <button class="webdav-btn webdav-btn-primary" id="webdav-connect">连接</button>
+      <button type="button" class="webdav-btn webdav-btn-primary" id="webdav-connect">连接</button>
     </div>
     
     <!-- 认证步骤 -->
@@ -152,12 +161,12 @@
         <input type="password" id="webdav-password" placeholder="密码" autocomplete="current-password">
       </div>
       <div class="webdav-checkbox">
-        <input type="checkbox" id="webdav-remember" checked>
+        <input type="checkbox" id="webdav-remember">
         <label for="webdav-remember">记住账号密码</label>
       </div>
       <div class="webdav-actions">
-        <button class="webdav-btn webdav-btn-secondary" id="webdav-auth-back">返回</button>
-        <button class="webdav-btn webdav-btn-primary" id="webdav-login">登录</button>
+        <button type="button" class="webdav-btn webdav-btn-secondary" id="webdav-auth-back">返回</button>
+        <button type="button" class="webdav-btn webdav-btn-primary" id="webdav-login">登录</button>
       </div>
     </div>
     
@@ -168,8 +177,8 @@
         <div class="webdav-loading">加载中...</div>
       </div>
       <div class="webdav-actions">
-        <button class="webdav-btn webdav-btn-secondary" id="webdav-refresh">刷新</button>
-        <button class="webdav-btn webdav-btn-secondary" id="webdav-back">返回</button>
+        <button type="button" class="webdav-btn webdav-btn-secondary" id="webdav-refresh">刷新</button>
+        <button type="button" class="webdav-btn webdav-btn-secondary" id="webdav-back">返回</button>
       </div>
     </div>
   </div>
