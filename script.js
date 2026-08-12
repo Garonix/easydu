@@ -802,7 +802,7 @@ function appendChapter(idx){
     var blk=createChapterBlock(idx);
     if(blk){
       contentInner.appendChild(blk);lastLoaded=idx;trimChapters();releaseChapterBodies();
-      if(S.fileType==='epub'&&_ftTipEl)_rebuildFtMap();
+      if(S.fileType==='epub'&&_ftTipEl)_scanFootnotes();
     }
   });
 }
@@ -822,7 +822,7 @@ function prependChapter(idx){
     contentEl.scrollTop=oT+(contentEl.scrollHeight-oH);
     requestAnimationFrame(function(){
       isAdjusting=false;trimChapters();releaseChapterBodies();
-      if(S.fileType==='epub'&&_ftTipEl)_rebuildFtMap();
+      if(S.fileType==='epub'&&_ftTipEl)_scanFootnotes();
     });
   });
 }
@@ -1262,6 +1262,14 @@ function updateToolbarTime(){}
 function startReadingTimer(){stopReadingTimer();_rs=Date.now();_rt=setInterval(tickReading,60000);_rtSec=setInterval(updateToolbarTime,10000);var s=getStats();s.sessions++;saveStats(s);updateStatsDisplay();updateToolbarTime()}
 function stopReadingTimer(){if(_rt){clearInterval(_rt);_rt=null}if(_rtSec){clearInterval(_rtSec);_rtSec=null}tickReading();_rs=0;updateToolbarTime()}
 function updateCacheStats(){var l=getLib().filter(function(b){return!!b.pv===S.hiddenShelf}),t=0;for(var i=0;i<l.length;i++)t+=l[i].s||0;$('cache-info').textContent='缓存 '+l.length+' 本书，占用 '+fmtSize(t)}
+/* 清空当前书籍的内存状态（与缓存/书籍删除共用） */
+function resetBookState(){
+  S.fileName='';S.fileSize=0;S.fileType='';S.rawText='';
+  S.chapters=[];S.currentChapter=0;S.epubCSS='';S.epubTitle='';S.toc=null;
+  S.storeMode='inline';S.searchQuery='';S.searchResults=[];S.searchIdx=-1;
+  firstLoaded=-1;lastLoaded=-1;_progData=null;_textCache=null;_textCacheLen=0;_tocItems=[];
+  if(contentInner)contentInner.innerHTML='';
+}
 function clearBookStorage(){
   /* 仅清书籍相关 localStorage：书架、进度、书签；不动设置、隐藏书架状态、统计和 WebDAV。 */
   try{localStorage.removeItem('jd_lib')}catch(e){}
@@ -1280,7 +1288,7 @@ function clearCache(){
   dbClearAll(function(ok){
     if(!ok){toast('数据库不可用');return}
     clearBookStorage();
-    /* 若正在阅读，退回书架并清空内存中的书籍数据 */
+    /* 若正在阅读，退回书架 */
     if(reader&&reader.classList.contains('active')){
       stopReadingTimer();
       closeSearch();
@@ -1291,11 +1299,7 @@ function clearCache(){
       reader.classList.remove('active');
       bookshelf.classList.remove('hide');
     }
-    S.fileName='';S.fileSize=0;S.fileType='';S.rawText='';
-    S.chapters=[];S.currentChapter=0;S.epubCSS='';S.epubTitle='';S.toc=null;
-    S.storeMode='inline';S.searchQuery='';S.searchResults=[];S.searchIdx=-1;
-    firstLoaded=-1;lastLoaded=-1;_progData=null;_textCache=null;_textCacheLen=0;_tocItems=[];
-    if(contentInner)contentInner.innerHTML='';
+    resetBookState();
     renderBookshelf();updateCacheStats();toast('缓存已清除');
   });
 }
@@ -1328,14 +1332,7 @@ function processFootnotes(){
       _showFtTip(a,text);
     });
   }
-  _ftMap={};
-  var allAsides=contentInner.querySelectorAll('aside');
-  allAsides.forEach(function(aside){
-    if(aside.getAttribute('epub:type')==='footnote'){
-      var id=aside.getAttribute('id');
-      if(id){var li=aside.querySelector('.duokan-footnote-item,li');_ftMap[id]=li?li.textContent.trim():aside.textContent.trim();aside.classList.add('footnote-hidden')}
-    }
-  });
+  _scanFootnotes();
   return{map:_ftMap,hideTip:function(){if(_ftTipEl)_ftTipEl.classList.remove('show');_ftActiveRef=null},showTip:_showFtTip};
 }
 function _showFtTip(ref,text){
@@ -1351,7 +1348,8 @@ function _showFtTip(ref,text){
   _ftActiveRef=ref;
 }
 function closeTip(){if(_ftTipEl){_ftTipEl.classList.remove('show');_ftActiveRef=null}}
-function _rebuildFtMap(){
+/* 扫描当前已渲染章节中的脚注，重建 href-id 映射（渲染时调用，见 appendChapter/prependChapter） */
+function _scanFootnotes(){
   _ftMap={};
   contentInner.querySelectorAll('aside').forEach(function(aside){
     if(aside.getAttribute('epub:type')==='footnote'){
