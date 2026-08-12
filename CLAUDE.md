@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Zero-tooling vanilla JS/HTML/CSS** — no build system, no bundler, no package.json, no tests, no linter
 - Single-page application: [index.html](index.html), [script.js](script.js), [style.css](style.css)
+- Split modules (plain `<script>` tags + `window` bridging, no build step): [webdav.js](webdav.js), [epub.js](epub.js), [convert.js](convert.js)
 - CDN dependencies: **JSZip** (EPUB parsing), **marked** (Markdown rendering)
 - Google Fonts: LXGW WenKai TC (Chinese calligraphic font)
 - **IndexedDB** stores book content; **localStorage** stores library metadata, progress, bookmarks, settings, statistics
@@ -28,17 +29,27 @@ There are no build, test, or lint commands — the project runs directly from so
 
 ## Architecture
 
-All application logic lives in a single IIFE in [script.js](script.js). The code is organized by functional sections (referenced by comment headers):
+Entry point [script.js](script.js) holds app state (`S`), DOM refs, and the reader core, all inside a single IIFE. Two self-contained modules are split into separate files and bridged via `window`:
+
+| File | Role | Shared API (via `window`) |
+|---|---|---|
+| script.js | Reader core, bookshelf, settings, progress, search, TOC, events | Exports `S`, `toast`, `showLoading`, `hideLoading`, `fmtSize`, `openDB`, `dbSave`, `addToLib`, `decodeBuffer`, `generateCoverDataUrl`, `processContent`, `finishEpubImport`, `parseEPUB`, `PROC_DELAY` |
+| webdav.js | WebDAV remote bookshelf (auth, PROPFIND browse, download-import) | Exports `WebDAV.isOpen/hide/trapFocus`; consumes the script.js exports above |
+| epub.js | EPUB parser (zip unpack, TOC/NCX/NAV, CSS scoping, image inlining) | Exports `EPUB.parseEPUB/hrefMatch/findChapterByHref`; consumes `S` |
+| convert.js | Traditional→Simplified char mapping data (OpenCC-derived) | Exports `Convert.t2s` |
+
+`script.js` also defines thin runtime bridges so internal call sites stay unchanged: `parseEPUB`, `hrefMatch`, `findChapterByHref` resolve to `window.EPUB.*` at call time. `index.html` loads scripts in this order: `convert.js` → `script.js` → `webdav.js` → `epub.js`.
+
+The reader core in [script.js](script.js) is organized by functional sections (referenced by comment headers):
 
 | Section | Purpose |
 |---|---|
 | IndexedDB | `openDB`, `dbSave`, `dbLoad`, `dbDelete` — persistent book content storage |
 | Library | `getLib`, `saveLib`, `addToLib`, `removeFromLib` — bookshelf metadata in localStorage |
 | Cover Generation | `generateCoverDataUrl` — Canvas-based procedural cover art with gradient colors |
-| EPUB Parser | `parseEPUB`, `resolvePath` — full EPUB extraction with cover/inline image resolution |
 | Settings | `loadSettings`, `saveSettings`, `applySettings` — theme, font, layout preferences |
 | Bookshelf UI | `renderBookshelf`, `showBookshelf`, `hideBookshelf` — card grid with progress bars |
-| File Handling | `handleFile`, `handleEPUB`, `loadBookFromShelf`, `deleteBook` — import/open/delete |
+| File Handling | `handleFile`, `handleEPUB`, `loadBookFromShelf`, `deleteBook` — import/open/delete (EPUB parsing itself lives in epub.js) |
 | Content Splitting | `splitTxt`, `splitByPara`, `splitMD` — chapter detection (Chinese chapter patterns for TXT) |
 | Seamless Rendering | `initSeamless`, `appendChapter`, `prependChapter`, `checkInfinite`, `trimChapters` — virtual scroll / infinite loading |
 | Progress | `getAccurateProgress`, `updateProgress`, `jumpToPercent`, `setupProgressDrag` — scroll-position-granular progress |
@@ -46,7 +57,7 @@ All application logic lives in a single IIFE in [script.js](script.js). The code
 | Search | `doSearch`, `applyHighlights`, `navigateToResult` — full-text search with highlighting |
 | TOC | `buildTOC`, `highlightToc` — sidebar table of contents with current-chapter tracking |
 | Reading Timer | `startReadingTimer`, `stopReadingTimer`, `tickReading` — reading time statistics |
-| Events | `setupEvents`, `setupSettingsEvents` — DOM events including mobile touch gestures |
+| Events | `setupEvents`, `setupSettingsEvents` — DOM events including mobile touch gestures (WebDAV events live in webdav.js) |
 
 ## Two Screens
 
@@ -61,7 +72,7 @@ The app has two main views, toggled via CSS class `.active`:
 
 ## Key Constants
 
-Defined at the top of `script.js` (line 17):
+Defined at the top of `script.js` (line 20):
 
 - `CH_HEADING_GAP`, `BM_OFFSET_TOL` — chapter/bookmark tolerances
 - `SCROLL_BOUND`, `PARA_MAX` — scroll and paragraph thresholds
