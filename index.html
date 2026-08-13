@@ -132,6 +132,18 @@
 </aside>
 
 <div id="toast"></div>
+
+<!-- 确认弹框（渐入渐出） -->
+<div class="confirm-overlay" id="confirm-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="confirm-box">
+    <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="confirm-btns">
+      <button type="button" class="confirm-btn cancel" id="confirm-cancel">取消</button>
+      <button type="button" class="confirm-btn ok" id="confirm-ok">确定</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="file-input" accept=".txt,.md,.markdown,.epub" hidden>
 
 <!-- WebDAV 模态框 -->

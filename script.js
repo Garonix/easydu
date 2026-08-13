@@ -13,6 +13,7 @@ var settingsEl=$('settings'),settingsOverlay=$('settings-overlay');
 var tbTitle=$('tb-title'),searchBar=$('search-bar'),searchInput=$('search-input'),searchCount=$('search-count');
 var progressFill=$('progress-fill'),progressThumb=$('progress-thumb'),progressTip=$('progress-tip'),progressTrack=$('progress-track');
 var toastEl=$('toast'),fileInput=$('file-input');
+var confirmOverlay=$('confirm-overlay'),confirmMsg=$('confirm-msg'),confirmOkBtn=$('confirm-ok'),confirmCancelBtn=$('confirm-cancel');
 var bookshelfSearch=$('bs-search-input'),bookshelfSort=$('bs-sort'),bookshelfTools=$('bs-library-tools');
 var firstLoaded=-1,lastLoaded=-1,isAdjusting=false,_progData=null,_rs=0,_rt=null,_rtSec=null,_touchTap=false;
 var importDropdownMenu=$('import-dropdown-menu');
@@ -560,11 +561,12 @@ function loadBookFromShelf(name){
 }
 function deleteBook(name){
   var t=name.replace(/\.[^.]+$/,'');
-  if(!confirm('确定要移除《'+t+'》？'))return;
-  dbDelete(name,function(){});removeFromLib(name);
-  try{var p=JSON.parse(localStorage.getItem('jd_p')||'{}');delete p[name];localStorage.setItem('jd_p',JSON.stringify(p))}catch(e){console.warn('清除进度失败',e)}
-  try{localStorage.removeItem('jd_bm_'+name)}catch(e){console.warn('清除书签失败',e)}
-  renderBookshelf();toast('已从书架移除');
+  confirmBox('确定要完全移除《'+t+'》？','移除',function(){
+    dbDelete(name,function(){});removeFromLib(name);
+    try{var p=JSON.parse(localStorage.getItem('jd_p')||'{}');delete p[name];localStorage.setItem('jd_p',JSON.stringify(p))}catch(e){console.warn('清除进度失败',e)}
+    try{localStorage.removeItem('jd_bm_'+name)}catch(e){console.warn('清除书签失败',e)}
+    renderBookshelf();toast('已从书架移除');
+  });
 }
 function triggerDownload(blob,name){
   var url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -893,9 +895,19 @@ function getProgressData(){
   return _progData;
 }
 function getAccurateProgress(){if(!S.chapters||!S.chapters.length)return 0;var pd=getProgressData();if(!pd.total)return 0;var bl=contentInner.querySelector('[data-idx="'+S.currentChapter+'"]');if(!bl)return pd.cum[S.currentChapter]/pd.total;var cs=pd.cum[S.currentChapter],cl=pd.cum[S.currentChapter+1]-cs;var so=contentEl.scrollTop-getContentOffset(bl),cp=bl.offsetHeight>0?Math.max(0,Math.min(1,so/bl.offsetHeight)):0;return(cs+cl*cp)/pd.total}
-function updateProgress(){var pct=getAccurateProgress(),pi=Math.round(pct*100);progressFill.style.width=pi+'%';progressThumb.style.left=pi+'%';progressTip.style.left=pi+'%';var ch=S.chapters[S.currentChapter];progressTip.textContent=(ch?ch.title:'')+' · '+pi+'%'}
+function positionProgressTip(pi){
+  /* tip 中心对齐进度点，但限制在轨道内，避免 0%/100% 时溢出屏幕 */
+  if(!progressTip||!progressTrack)return;
+  var tipW=progressTip.offsetWidth||120;
+  var trackW=progressTrack.clientWidth||1;
+  if(tipW>=trackW){progressTip.style.left='50%';return}
+  var x=pi/100*trackW;
+  x=Math.max(tipW/2,Math.min(trackW-tipW/2,x));
+  progressTip.style.left=x+'px';
+}
+function updateProgress(){var pct=getAccurateProgress(),pi=Math.round(pct*100);progressFill.style.width=pi+'%';progressThumb.style.left=pi+'%';var ch=S.chapters[S.currentChapter];progressTip.textContent=(ch?ch.title:'')+' · '+pi+'%';positionProgressTip(pi)}
 function jumpToPercent(pct){var pd=getProgressData();if(!pd.total)return;var tc=pct*pd.total,ci=0;for(var i=0;i<pd.cum.length-1;i++){if(pd.cum[i+1]>=tc){ci=i;break}ci=i+1}ci=Math.min(ci,S.chapters.length-1);var cs=pd.cum[ci],cl=pd.cum[ci+1]-cs,cp2=cl>0?(tc-cs)/cl:0;var bl=contentInner.querySelector('[data-idx="'+ci+'"]');if(bl){contentEl.scrollTop=getContentOffset(bl)+cp2*bl.offsetHeight;if(ci!==S.currentChapter){S.currentChapter=ci;highlightToc();updateBmBtn()}}else{goToChapter(ci,function(){var b2=contentInner.querySelector('[data-idx="'+ci+'"]');if(b2)contentEl.scrollTop=getContentOffset(b2)+cp2*b2.offsetHeight})}}
-function setupProgressDrag(){var dragging=false;function getPct(e){var r=progressTrack.getBoundingClientRect();var cx=e.touches?e.touches[0].clientX:e.clientX;return Math.max(0,Math.min(1,(cx-r.left)/r.width))}function visual(p){var pd=getProgressData(),pi=Math.round(p*100);progressFill.style.width=pi+'%';progressThumb.style.left=pi+'%';progressTip.style.left=pi+'%';var tc=p*pd.total,ci=0;for(var i=0;i<pd.cum.length-1;i++){if(pd.cum[i+1]>=tc){ci=i;break}ci=i+1}ci=Math.min(ci,S.chapters.length-1);progressTip.textContent=(S.chapters[ci]?S.chapters[ci].title:'')+' · '+pi+'%'}function start(e){if(!S.chapters.length)return;dragging=true;progressTrack.classList.add('active');visual(getPct(e))}function move(e){if(!dragging)return;visual(getPct(e));e.preventDefault()}function end(e){if(!dragging)return;dragging=false;progressTrack.classList.remove('active');var r=progressTrack.getBoundingClientRect();var cx=e.changedTouches?e.changedTouches[0].clientX:e.clientX;jumpToPercent(Math.max(0,Math.min(1,(cx-r.left)/r.width)))}on(progressTrack,'mousedown',start);on(document,'mousemove',move);on(document,'mouseup',end);on(progressTrack,'touchstart',function(e){e.preventDefault();start(e)},{passive:false});on(document,'touchmove',move,{passive:false});on(document,'touchend',end)}
+function setupProgressDrag(){var dragging=false;function getPct(e){var r=progressTrack.getBoundingClientRect();var cx=e.touches?e.touches[0].clientX:e.clientX;return Math.max(0,Math.min(1,(cx-r.left)/r.width))}function visual(p){var pd=getProgressData(),pi=Math.round(p*100);progressFill.style.width=pi+'%';progressThumb.style.left=pi+'%';var tc=p*pd.total,ci=0;for(var i=0;i<pd.cum.length-1;i++){if(pd.cum[i+1]>=tc){ci=i;break}ci=i+1}ci=Math.min(ci,S.chapters.length-1);progressTip.textContent=(S.chapters[ci]?S.chapters[ci].title:'')+' · '+pi+'%';positionProgressTip(pi)}function start(e){if(!S.chapters.length)return;dragging=true;progressTrack.classList.add('active');visual(getPct(e))}function move(e){if(!dragging)return;visual(getPct(e));e.preventDefault()}function end(e){if(!dragging)return;dragging=false;progressTrack.classList.remove('active');var r=progressTrack.getBoundingClientRect();var cx=e.changedTouches?e.changedTouches[0].clientX:e.clientX;jumpToPercent(Math.max(0,Math.min(1,(cx-r.left)/r.width)))}on(progressTrack,'mousedown',start);on(document,'mousemove',move);on(document,'mouseup',end);on(progressTrack,'touchstart',function(e){e.preventDefault();start(e)},{passive:false});on(document,'touchmove',move,{passive:false});on(document,'touchend',end)}
 
 /* ===== Bookmarks ===== */
 function getBookmarks(){try{return JSON.parse(localStorage.getItem('jd_bm_'+S.fileName))||[]}catch(e){return[]}}
@@ -1253,6 +1265,36 @@ function hideLoading(){if(loading)loading.classList.remove('show')}
 function showReader(){hideBookshelf();buildTOC();if(reader)reader.classList.add('active');updateReaderTitle();var bm=$('btn-bm');if(bm){bm.classList.remove('on');var sv=bm.querySelector('svg');if(sv)sv.setAttribute('fill','none')}requestAnimationFrame(function(){hideLoading()});startReadingTimer()}
 function fmtSize(b){return b<1024?b+'B':b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(1)+'MB'}
 function toast(msg){if(!toastEl)return;toastEl.textContent=msg;toastEl.classList.add('show');clearTimeout(toastEl._t);toastEl._t=setTimeout(function(){toastEl.classList.remove('show')},TOAST_MS)}
+/* ===== 确认弹框（替代原生 confirm，渐入渐出） ===== */
+var _confirmCleanup=null;
+function confirmBox(msg,okText,onOk){
+  if(!confirmOverlay||confirmOverlay.classList.contains('show'))return;
+  confirmMsg.textContent=msg;
+  confirmOkBtn.textContent=okText||'确定';
+  confirmOverlay.classList.add('show');
+  confirmOverlay.setAttribute('aria-hidden','false');
+  confirmCancelBtn.focus();
+  var ok=function(){closeConfirmBox();if(onOk)onOk()};
+  var cancel=function(){closeConfirmBox()};
+  var onOverlay=function(e){if(e.target===confirmOverlay)cancel()};
+  var onKey=function(e){if(e.key==='Escape')cancel();else if(e.key==='Enter')ok()};
+  _confirmCleanup=function(){
+    confirmOkBtn.removeEventListener('click',ok);
+    confirmCancelBtn.removeEventListener('click',cancel);
+    confirmOverlay.removeEventListener('click',onOverlay);
+    document.removeEventListener('keydown',onKey);
+  };
+  confirmOkBtn.addEventListener('click',ok);
+  confirmCancelBtn.addEventListener('click',cancel);
+  confirmOverlay.addEventListener('click',onOverlay);
+  document.addEventListener('keydown',onKey);
+}
+function closeConfirmBox(){
+  if(!confirmOverlay||!confirmOverlay.classList.contains('show'))return;
+  confirmOverlay.classList.remove('show');
+  confirmOverlay.setAttribute('aria-hidden','true');
+  if(_confirmCleanup){_confirmCleanup();_confirmCleanup=null}
+}
 function debounce(fn,ms){var t;return function(){var a=arguments,c=this;clearTimeout(t);t=setTimeout(function(){fn.apply(c,a)},ms)}}
 function getStats(){try{return JSON.parse(localStorage.getItem('jd_stats')||'{"totalMin":0,"todayMin":0,"date":"","sessions":0,"books":{}}')}catch(e){return{totalMin:0,todayMin:0,date:'',sessions:0,books:{}}}}
 function saveStats(s){try{localStorage.setItem('jd_stats',JSON.stringify(s))}catch(e){}}
@@ -1284,7 +1326,7 @@ function clearBookStorage(){
   }catch(e){}
 }
 function clearCache(){
-  if(!confirm('确定清除所有书籍缓存？进度与书签也会删除，需要重新导入才能阅读。'))return;
+  confirmBox('确定清除所有书籍缓存？进度与书签也会删除，需要重新导入才能阅读。','清除',function(){
   dbClearAll(function(ok){
     if(!ok){toast('数据库不可用');return}
     clearBookStorage();
@@ -1301,6 +1343,7 @@ function clearCache(){
     }
     resetBookState();
     renderBookshelf();updateCacheStats();toast('缓存已清除');
+  });
   });
 }
 function toggleTheme(){S.theme=S.theme==='light'?'dark':'light';applySettings();saveSettings()}

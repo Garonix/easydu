@@ -81,7 +81,9 @@ input,textarea,button,select{-webkit-user-select:auto;user-select:auto}
 .tb-btn{width:36px;height:36px;border:none;border-radius:10px;background:transparent;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;flex-shrink:0}
 .tb-btn:hover{background:var(--accent-soft)}
 .tb-btn.on{color:var(--accent)}
-.tb-title{flex:1;text-align:center;font-size:.85rem;color:var(--text-sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
+/* tb-title 已 absolute 脱离 flex 流，右侧按钮组失去 flex:1 推力；给组内第一个按钮加 margin-left:auto，把剩余空间推到组前，实现整体右对齐贴边 */
+#btn-home{margin-left:auto}
+.tb-title{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:calc(100% - 260px);text-align:center;font-size:.85rem;color:var(--text-sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
 #search-bar{position:absolute;top:54px;left:0;right:0;z-index:99;background:var(--toolbar-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:10px 16px;transform:translateY(-100%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s,top .3s,left .3s cubic-bezier(.4,0,.2,1);overflow:hidden}
 #search-bar.open{transform:translateY(0);opacity:1;pointer-events:auto}
 .search-row{display:flex;align-items:center;gap:4px;width:100%}
@@ -214,6 +216,19 @@ mark.shl.act{background:rgba(212,160,88,.7);outline:2px solid var(--accent);bord
 
 #toast{position:fixed;bottom:50px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--text);color:var(--bg);padding:10px 24px;border-radius:8px;font-size:.85rem;opacity:0;transition:all .3s;z-index:200;pointer-events:none}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ===== Confirm Dialog（渐入渐出） ===== */
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s linear .28s}
+.confirm-overlay.show{opacity:1;visibility:visible;transition:opacity .28s ease}
+.confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:88%;max-width:340px;padding:26px 24px 20px;box-shadow:0 12px 40px rgba(0,0,0,.22);transform:translateY(14px) scale(.96);opacity:0;transition:transform .28s cubic-bezier(.2,.8,.25,1),opacity .28s ease}
+.confirm-overlay.show .confirm-box{transform:translateY(0) scale(1);opacity:1}
+.confirm-msg{font-size:.95rem;line-height:1.65;text-align:center;color:var(--text);margin-bottom:22px;word-break:break-word}
+.confirm-btns{display:flex;gap:10px}
+.confirm-btn{flex:1;padding:9px 0;border:1px solid var(--border);border-radius:9px;background:transparent;color:var(--text);font-family:inherit;font-size:.88rem;cursor:pointer;transition:background .2s,border-color .2s,color .2s}
+.confirm-btn:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.confirm-btn.ok{border-color:var(--accent);background:var(--accent);color:var(--bg);font-weight:600}
+.confirm-btn.ok:hover{background:var(--accent);color:var(--bg);filter:brightness(.92)}
+.confirm-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 .stats-group{border-top:1px solid var(--border);padding-top:8px}
 .stats-row{display:flex;justify-content:space-between;font-size:.85rem;padding:4px 0;color:var(--text)}
