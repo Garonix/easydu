@@ -257,8 +257,6 @@ function ensureChapters(indices,cb){
       }else{ch.html=ch.html||'';ch.text=ch.text||'';}
       ch._loaded=true;
     }
-    /* textLen 可能从估算变为真实值，进度缓存需失效 */
-    _progData=null;
     releaseChapterBodies();
     cb&&cb();
   });
@@ -887,8 +885,6 @@ function appendChapter(idx){
       contentInner.appendChild(blk);lastLoaded=idx;trimChapters();releaseChapterBodies();
       if(S.fileType==='epub'&&_ftTipEl)_scanFootnotes();
     }
-    /* 链式消费挂起的后续章节，加速快速滚动 */
-    if(_chPending[idx+1])appendChapter(idx+1);
   });
 }
 function prependChapter(idx){
@@ -911,51 +907,7 @@ function prependChapter(idx){
     });
   });
 }
-function checkInfinite(){if(isAdjusting||!S.chapters.length)return;var st=contentEl.scrollTop,sb=st+contentEl.clientHeight,sh=contentEl.scrollHeight;if(sb>sh-SCROLL_BOUND&&lastLoaded<S.chapters.length-1)ensureMore(lastLoaded+1);if(st<SCROLL_BOUND&&firstLoaded>0)prependChapter(firstLoaded-1)}
-/* 批量加载并渲染后续章节，加速快速滚动追赶；inline 模式内容在内存，直接渲染 */
-var _morePending=false;
-function ensureMore(from){
-  if(S.storeMode!=='v2'){
-    /* 一帧内最多执行一次，避免同步渲染多批卡顿 */
-    if(_morePending)return;
-    _morePending=true;
-    setTimeout(function(){
-      _morePending=false;
-      var cnt=0;
-      var cur=lastLoaded;
-      while(cur+1<S.chapters.length&&cnt<5){
-        cur++;
-        if(cur<=lastLoaded)continue;
-        if(contentInner.children.length>0)contentInner.appendChild(createSep());
-        var blk=createChapterBlock(cur);
-        if(blk){contentInner.appendChild(blk);lastLoaded=cur;cnt++}
-      }
-      if(cnt){trimChapters();releaseChapterBodies()}
-    },0);
-    return;
-  }
-  var n=Math.min(5,S.chapters.length-from);
-  var need=[];
-  for(var k=0;k<n;k++){
-    var x=from+k;
-    if(S.chapters[x]&&!S.chapters[x]._loaded&&!S.chapters[x]._pending)need.push(x);
-  }
-  if(!need.length)return;
-  for(var j=0;j<need.length;j++)S.chapters[need[j]]._pending=true;
-  ensureChapters(need,function(){
-    for(var m=0;m<need.length;m++)delete S.chapters[need[m]]._pending;
-    var cur2=lastLoaded;
-    while(cur2+1<S.chapters.length&&S.chapters[cur2+1]._loaded&&cur2+1<from+n){
-      cur2++;
-      if(cur2<=lastLoaded)continue;
-      if(contentInner.children.length>0)contentInner.appendChild(createSep());
-      var blk2=createChapterBlock(cur2);
-      if(blk2){contentInner.appendChild(blk2);lastLoaded=cur2}
-    }
-    trimChapters();releaseChapterBodies();
-    if(S.fileType==='epub'&&_ftTipEl)_scanFootnotes();
-  });
-}
+function checkInfinite(){if(isAdjusting||!S.chapters.length)return;var st=contentEl.scrollTop,sb=st+contentEl.clientHeight,sh=contentEl.scrollHeight;if(sb>sh-SCROLL_BOUND&&lastLoaded<S.chapters.length-1)appendChapter(lastLoaded+1);if(st<SCROLL_BOUND&&firstLoaded>0)prependChapter(firstLoaded-1)}
 var _preloadTimer=null;
 function schedulePreload(){
   if(_preloadTimer)clearTimeout(_preloadTimer);
@@ -1005,26 +957,7 @@ function trimChapters(){
   firstLoaded=+rem[0].dataset.idx;lastLoaded=+rem[rem.length-1].dataset.idx;
   contentEl.scrollTop=Math.max(0,Math.min(contentEl.scrollHeight-contentEl.clientHeight,oT-(oH-contentEl.scrollHeight)));
 }
-var _lastSt=0,_lastStT=0;
-function updateReadingChapter(){var bs=contentInner.querySelectorAll('.ch-block');var cr=contentEl.getBoundingClientRect();var threshold=cr.top+contentEl.clientHeight*.33;var c=S.currentChapter;for(var i=0;i<bs.length;i++){var rect=bs[i].getBoundingClientRect();if(rect.top>threshold)break;c=+bs[i].dataset.idx}
-  /* 兜底：视口卡在已加载内容底部且全书未加载完时，仅当快速滚动（加载跟不上）才跳转；慢速滚动由 ensureMore 平滑加载 */
-  if(!_draggingProg&&bs.length&&lastLoaded<S.chapters.length-1){
-    var sh=contentEl.scrollHeight;
-    if(contentEl.scrollTop>sh-contentEl.clientHeight-50){
-      var now=Date.now(),st=contentEl.scrollTop;
-      var isFast=false;
-      if(_lastStT&&now-_lastStT<300)isFast=Math.abs(st-_lastSt)/Math.max(1,now-_lastStT)>3;
-      else isFast=true;
-      _lastSt=st;_lastStT=now;
-      if(isFast){
-        var remain=S.chapters.length-1-lastLoaded;
-        var step=Math.max(10,Math.round(remain*0.08));
-        var target=Math.min(S.chapters.length-1,lastLoaded+step);
-        if(target>lastLoaded+6){goToChapter(target);return}
-      }
-    }
-  }
-  if(c!==S.currentChapter){S.currentChapter=c;highlightToc();updateBmBtn();updateStickyHead()}}
+function updateReadingChapter(){var bs=contentInner.querySelectorAll('.ch-block');var cr=contentEl.getBoundingClientRect();var threshold=cr.top+contentEl.clientHeight*.33;var c=S.currentChapter;for(var i=0;i<bs.length;i++){var rect=bs[i].getBoundingClientRect();if(rect.top>threshold)break;c=+bs[i].dataset.idx}if(c!==S.currentChapter){S.currentChapter=c;highlightToc();updateBmBtn();updateStickyHead()}}
 var svTimer;function afterScroll(){if(isAdjusting)return;closeTip();hideSelToolbar();hideAntPop();updateReadingChapter();updateProgress();checkInfinite();updateBmBtn();clearTimeout(svTimer);svTimer=setTimeout(function(){saveProg();schedulePreload()},SAVE_DELAY)}
 
 /* ===== Progress ===== */
@@ -1053,8 +986,7 @@ function positionProgressTip(pi){
 }
 function updateProgress(){var pct=getAccurateProgress(),pi=Math.round(pct*100);progressFill.style.width=pi+'%';progressThumb.style.left=pi+'%';var ch=S.chapters[S.currentChapter];progressTip.textContent=(ch?ch.title:'')+' · '+pi+'%';positionProgressTip(pi)}
 function jumpToPercent(pct){var pd=getProgressData();if(!pd.total)return;var tc=pct*pd.total,ci=0;for(var i=0;i<pd.cum.length-1;i++){if(pd.cum[i+1]>=tc){ci=i;break}ci=i+1}ci=Math.min(ci,S.chapters.length-1);var cs=pd.cum[ci],cl=pd.cum[ci+1]-cs,cp2=cl>0?(tc-cs)/cl:0;var bl=contentInner.querySelector('[data-idx="'+ci+'"]');if(bl){contentEl.scrollTop=getContentOffset(bl)+cp2*bl.offsetHeight;if(ci!==S.currentChapter){S.currentChapter=ci;highlightToc();updateBmBtn()}}else{goToChapter(ci,function(){var b2=contentInner.querySelector('[data-idx="'+ci+'"]');if(b2)contentEl.scrollTop=getContentOffset(b2)+cp2*b2.offsetHeight})}}
-var _draggingProg=false;
-function setupProgressDrag(){var dragging=false;function getPct(e){var r=progressTrack.getBoundingClientRect();var cx=e.touches?e.touches[0].clientX:e.clientX;return Math.max(0,Math.min(1,(cx-r.left)/r.width))}function visual(p){var pd=getProgressData(),pi=Math.round(p*100);progressFill.style.width=pi+'%';progressThumb.style.left=pi+'%';var tc=p*pd.total,ci=0;for(var i=0;i<pd.cum.length-1;i++){if(pd.cum[i+1]>=tc){ci=i;break}ci=i+1}ci=Math.min(ci,S.chapters.length-1);progressTip.textContent=(S.chapters[ci]?S.chapters[ci].title:'')+' · '+pi+'%';positionProgressTip(pi)}function start(e){if(!S.chapters.length)return;dragging=true;_draggingProg=true;progressTrack.classList.add('active');visual(getPct(e))}function move(e){if(!dragging)return;visual(getPct(e));e.preventDefault()}function end(e){if(!dragging)return;dragging=false;progressTrack.classList.remove('active');var r=progressTrack.getBoundingClientRect();var cx=e.changedTouches?e.changedTouches[0].clientX:e.clientX;jumpToPercent(Math.max(0,Math.min(1,(cx-r.left)/r.width)));setTimeout(function(){_draggingProg=false},400)}on(progressTrack,'mousedown',start);on(document,'mousemove',move);on(document,'mouseup',end);on(progressTrack,'touchstart',function(e){e.preventDefault();start(e)},{passive:false});on(document,'touchmove',move,{passive:false});on(document,'touchend',end)}
+function setupProgressDrag(){var dragging=false;function getPct(e){var r=progressTrack.getBoundingClientRect();var cx=e.touches?e.touches[0].clientX:e.clientX;return Math.max(0,Math.min(1,(cx-r.left)/r.width))}function visual(p){var pd=getProgressData(),pi=Math.round(p*100);progressFill.style.width=pi+'%';progressThumb.style.left=pi+'%';var tc=p*pd.total,ci=0;for(var i=0;i<pd.cum.length-1;i++){if(pd.cum[i+1]>=tc){ci=i;break}ci=i+1}ci=Math.min(ci,S.chapters.length-1);progressTip.textContent=(S.chapters[ci]?S.chapters[ci].title:'')+' · '+pi+'%';positionProgressTip(pi)}function start(e){if(!S.chapters.length)return;dragging=true;progressTrack.classList.add('active');visual(getPct(e))}function move(e){if(!dragging)return;visual(getPct(e));e.preventDefault()}function end(e){if(!dragging)return;dragging=false;progressTrack.classList.remove('active');var r=progressTrack.getBoundingClientRect();var cx=e.changedTouches?e.changedTouches[0].clientX:e.clientX;jumpToPercent(Math.max(0,Math.min(1,(cx-r.left)/r.width)))}on(progressTrack,'mousedown',start);on(document,'mousemove',move);on(document,'mouseup',end);on(progressTrack,'touchstart',function(e){e.preventDefault();start(e)},{passive:false});on(document,'touchmove',move,{passive:false});on(document,'touchend',end)}
 
 /* ===== 替换规则 ===== */
 function getRepRules(){if(_repList===null){try{_repList=JSON.parse(localStorage.getItem('jd_rep'))||[]}catch(e){_repList=[]}}return _repList}
