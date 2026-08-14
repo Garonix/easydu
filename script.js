@@ -358,10 +358,6 @@ function applySettings(){
     b.classList.toggle('active',c===(S.textColor||''));
   });
   updateConvBtn();
-  /* 主题模式按钮同步 */
-  document.querySelectorAll('[data-theme-btn]').forEach(function(b){
-    b.classList.toggle('active',b.getAttribute('data-theme-btn')===S.theme);
-  });
   var sh=$('sticky-head');if(sh)sh.style.display=S.stickyHead?'block':'none';
   var rp=$('range-pomo'),vp=$('val-pomo');if(rp)rp.value=S.pomoMin;if(vp)vp.textContent=S.pomoMin+' 分钟';
   var ss=$('switch-sticky');if(ss)ss.checked=!!S.stickyHead;
@@ -1650,8 +1646,6 @@ function setupSettingsEvents(){
   document.querySelectorAll('[data-color]').forEach(function(b){on(b,'click',function(){S.textColor=b.getAttribute('data-color')||'';applySettings();saveSettings()})});
   on($('switch-conv'),'change',function(e){setConv(e.target.checked)});
   on($('cache-clear'),'click',clearCache);
-  /* 主题模式 */
-  document.querySelectorAll('[data-theme-btn]').forEach(function(b){on(b,'click',function(){var t=b.getAttribute('data-theme-btn');if(t&&t!==S.theme){S.theme=t;applySettings();saveSettings()}})});
   /* 替换规则 */
   on($('rep-add-btn'),'click',function(){
     var f=$('rep-f'),t=$('rep-t');
@@ -1907,16 +1901,17 @@ function handleHiddenShelfClick(){
   _hiddenShelfTapTimer=setTimeout(function(){_hiddenShelfTaps=0},650);
 }
 function togglePanel(n,force){if(n==='sidebar'){var o=force!==undefined?force:!sidebar.classList.contains('open');sidebar.classList.toggle('open',o);sidebarOverlay.classList.toggle('show',o);var sw=o?sidebar.offsetWidth+'px':'';toolbar.style.left=sw;searchBar.style.left=sw;if(o){highlightToc();renderAnnotations()}}else{var o2=force!==undefined?force:!settingsEl.classList.contains('open');settingsEl.classList.toggle('open',o2);settingsOverlay.classList.toggle('show',o2);if(o2){updateSettingsScope();updateStatsDisplay();updateCacheStats()}}}
-/* 设置面板按上下文（阅读中 / 书架）显示对应分组 */
-function updateSettingsScope(){
-  var inReader=reader.classList.contains('active');
+/* 设置面板按上下文（阅读中 / 书架）显示对应分组；forceReader 显式指定上下文，避免依赖 reader 状态判断 */
+function updateSettingsScope(forceReader){
+  var inReader=forceReader!==undefined?forceReader:!!(reader&&reader.classList.contains('active'));
   document.querySelectorAll('#settings .settings-group').forEach(function(g){
     var sc=g.getAttribute('data-scope');
-    if(sc&&sc!==(inReader?'reader':'shelf'))g.style.display='none';
+    if(sc==='reader')g.style.display=inReader?'':'none';
+    else if(sc==='shelf')g.style.display=inReader?'none':'';
     else g.style.display='';
   });
 }
-function showBookshelfSettings(){settingsEl.classList.add('open');settingsOverlay.classList.add('show');updateSettingsScope();updateStatsDisplay();updateCacheStats()}
+function showBookshelfSettings(){settingsEl.classList.add('open');settingsOverlay.classList.add('show');updateSettingsScope(false);updateStatsDisplay();updateCacheStats()}
 
 /* ===== Helpers ===== */
 function showLoading(m){if(loading){loading.classList.add('show');if(loadingText)loadingText.textContent=m||'加载中...'}}
@@ -1955,10 +1950,10 @@ function closeConfirmBox(){
   if(_confirmCleanup){_confirmCleanup();_confirmCleanup=null}
 }
 function debounce(fn,ms){var t;return function(){var a=arguments,c=this;clearTimeout(t);t=setTimeout(function(){fn.apply(c,a)},ms)}}
-function getStats(){try{return JSON.parse(localStorage.getItem('jd_stats')||'{"totalMin":0,"todayMin":0,"date":"","sessions":0,"books":{}}')}catch(e){return{totalMin:0,todayMin:0,date:'',sessions:0,books:{}}}}
+function getStats(){try{return JSON.parse(localStorage.getItem('jd_stats')||'{"totalMin":0,"todayMin":0,"date":"","monthMin":0,"month":"","sessions":0,"books":{}}')}catch(e){return{totalMin:0,todayMin:0,date:'',monthMin:0,month:'',sessions:0,books:{}}}}
 function saveStats(s){try{localStorage.setItem('jd_stats',JSON.stringify(s))}catch(e){}}
-function updateStatsDisplay(){var s=getStats(),b=s.books[S.fileName];$('stats-total').textContent=s.totalMin+' 分钟';$('stats-today').textContent=s.todayMin+' 分钟';$('stats-book').textContent=(b?b.min:0)+' 分钟'}
-function tickReading(){if(!_rs)return;var now=Date.now(),elapsed=Math.floor((now-_rs)/60000);if(elapsed<1)return;var s=getStats(),today=new Date().toISOString().slice(0,10);if(s.date!==today){s.todayMin=0;s.date=today}s.totalMin+=elapsed;s.todayMin+=elapsed;if(S.fileName){if(!s.books[S.fileName])s.books[S.fileName]={min:0,opens:0};s.books[S.fileName].min+=elapsed}saveStats(s);_rs=now;updateStatsDisplay()}
+function updateStatsDisplay(){var s=getStats(),b=s.books[S.fileName],ym=new Date().toISOString().slice(0,7);if(s.month!==ym)s.monthMin=0;var m=$('stats-month'),t=$('stats-total'),d=$('stats-today'),bk=$('stats-book');if(m)m.textContent=s.monthMin+' 分钟';if(t)t.textContent=s.totalMin+' 分钟';if(d)d.textContent=s.todayMin+' 分钟';if(bk)bk.textContent=(b?b.min:0)+' 分钟'}
+function tickReading(){if(!_rs)return;var now=Date.now(),elapsed=Math.floor((now-_rs)/60000);if(elapsed<1)return;var s=getStats(),today=new Date().toISOString().slice(0,10),ym=today.slice(0,7);if(s.date!==today){s.todayMin=0;s.date=today}if(s.month!==ym){s.monthMin=0;s.month=ym}s.totalMin+=elapsed;s.todayMin+=elapsed;s.monthMin+=elapsed;if(S.fileName){if(!s.books[S.fileName])s.books[S.fileName]={min:0,opens:0};s.books[S.fileName].min+=elapsed}saveStats(s);_rs=now;updateStatsDisplay()}
 function updateToolbarTime(){}
 function startReadingTimer(){stopReadingTimer();_rs=Date.now();_rt=setInterval(tickReading,60000);_rtSec=setInterval(updateToolbarTime,10000);var s=getStats();s.sessions++;saveStats(s);updateStatsDisplay();updateToolbarTime()}
 function stopReadingTimer(){if(_rt){clearInterval(_rt);_rt=null}if(_rtSec){clearInterval(_rtSec);_rtSec=null}tickReading();_rs=0;updateToolbarTime()}
