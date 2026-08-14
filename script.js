@@ -358,6 +358,10 @@ function applySettings(){
     b.classList.toggle('active',c===(S.textColor||''));
   });
   updateConvBtn();
+  /* 主题模式按钮同步 */
+  document.querySelectorAll('[data-theme-btn]').forEach(function(b){
+    b.classList.toggle('active',b.getAttribute('data-theme-btn')===S.theme);
+  });
   var sh=$('sticky-head');if(sh)sh.style.display=S.stickyHead?'block':'none';
   var rp=$('range-pomo'),vp=$('val-pomo');if(rp)rp.value=S.pomoMin;if(vp)vp.textContent=S.pomoMin+' 分钟';
   var ss=$('switch-sticky');if(ss)ss.checked=!!S.stickyHead;
@@ -1646,6 +1650,8 @@ function setupSettingsEvents(){
   document.querySelectorAll('[data-color]').forEach(function(b){on(b,'click',function(){S.textColor=b.getAttribute('data-color')||'';applySettings();saveSettings()})});
   on($('switch-conv'),'change',function(e){setConv(e.target.checked)});
   on($('cache-clear'),'click',clearCache);
+  /* 主题模式 */
+  document.querySelectorAll('[data-theme-btn]').forEach(function(b){on(b,'click',function(){var t=b.getAttribute('data-theme-btn');if(t&&t!==S.theme){S.theme=t;applySettings();saveSettings()}})});
   /* 替换规则 */
   on($('rep-add-btn'),'click',function(){
     var f=$('rep-f'),t=$('rep-t');
