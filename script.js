@@ -427,6 +427,7 @@ function handleFile(f){
   if(['txt','md','markdown','epub'].indexOf(ext)<0){toast('暂不支持此格式');return}
   if(ext==='epub'){handleEPUB(f);return}
   S.fileName=f.name;S.fileSize=f.size;S.fileType=(ext==='md'||ext==='markdown')?'md':'txt';
+  S.epubTitle='';S.toc=null;S.epubCSS='';
   showLoading('正在读取文件...');
   var rd=new FileReader();
   rd.onprogress=function(e){if(e.lengthComputable)showLoading('正在读取... '+fmtSize(e.loaded)+' / '+fmtSize(e.total))};
@@ -868,6 +869,13 @@ function initSeamless(chapter,offset,after){
       if(S.fileType==='epub'){processFootnotes();setupEpubLinkHandler()}
       releaseChapterBodies();
       if(typeof after==='function')after();
+      /* after 可能滚动了精确位置（如进度条跳转），其滚动事件可能被 isAdjusting 拦截导致显示滞后，
+         在下一帧强制刷新一次进度与章节，保证进度条与真实滚动位置一致 */
+      requestAnimationFrame(function(){
+        if(isAdjusting)isAdjusting=false;
+        if(!reader.classList.contains('active'))return;
+        updateReadingChapter();updateProgress();highlightToc();updateBmBtn();updateStickyHead();
+      });
     }
     whenLayoutReady(contentInner,settle);
   });
