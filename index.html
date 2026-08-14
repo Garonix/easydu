@@ -109,11 +109,11 @@
 
 <div id="settings-overlay"></div>
 <aside id="settings">
-  <div class="settings-title">阅读设置</div>
-  <div class="settings-group"><div class="settings-label">字号 <span id="val-fs">18px</span></div><input type="range" id="range-fs" min="14" max="28" value="18" step="1"></div>
-  <div class="settings-group"><div class="settings-label">行高 <span id="val-lh">1.85</span></div><input type="range" id="range-lh" min="1.4" max="2.6" value="1.85" step="0.05"></div>
-  <div class="settings-group"><div class="settings-label">边距</div><div class="settings-row"><button data-pad="narrow">窄</button><button data-pad="normal" class="active">标准</button><button data-pad="wide">宽</button></div></div>
-  <div class="settings-group"><div class="settings-label">正文字色</div><div class="settings-row color-row">
+  <div class="settings-title">设置</div>
+  <div class="settings-group" data-scope="reader"><div class="settings-label">字号 <span id="val-fs">18px</span></div><input type="range" id="range-fs" min="14" max="28" value="18" step="1"></div>
+  <div class="settings-group" data-scope="reader"><div class="settings-label">行高 <span id="val-lh">1.85</span></div><input type="range" id="range-lh" min="1.4" max="2.6" value="1.85" step="0.05"></div>
+  <div class="settings-group" data-scope="reader"><div class="settings-label">边距</div><div class="settings-row"><button data-pad="narrow">窄</button><button data-pad="normal" class="active">标准</button><button data-pad="wide">宽</button></div></div>
+  <div class="settings-group" data-scope="reader"><div class="settings-label">正文字色</div><div class="settings-row color-row">
     <button type="button" class="color-swatch active" data-color="" title="默认" style="background:var(--text)"></button>
     <button type="button" class="color-swatch" data-color="#3a3028" title="深褐" style="background:#3a3028"></button>
     <button type="button" class="color-swatch" data-color="#1a1a1a" title="纯黑" style="background:#1a1a1a"></button>
@@ -122,47 +122,51 @@
     <button type="button" class="color-swatch" data-color="#5c4a3a" title="咖啡" style="background:#5c4a3a"></button>
     <button type="button" class="color-swatch" data-color="#dcd6cc" title="浅灰" style="background:#dcd6cc"></button>
   </div></div>
-  <div class="settings-group"><div class="settings-label">繁转简<label class="switch" title="将繁体内容转为简体显示"><input type="checkbox" id="switch-conv"><span class="slider"></span></label></div>
-  <div class="settings-group stats-group">
+  <div class="settings-group" data-scope="reader"><div class="settings-label">繁转简<label class="switch" title="将繁体内容转为简体显示"><input type="checkbox" id="switch-conv"><span class="slider"></span></label></div>
+  <div class="settings-group stats-group" data-scope="shelf">
     <div class="settings-label">阅读统计</div>
     <div class="stats-row"><span>总阅读</span><span id="stats-total">0 分钟</span></div>
     <div class="stats-row"><span>今日</span><span id="stats-today">0 分钟</span></div>
     <div class="stats-row"><span>本书</span><span id="stats-book">0 分钟</span></div>
   </div>
-  <div class="settings-group cache-group">
+  <div class="settings-group cache-group" data-scope="shelf">
     <div class="settings-label">缓存管理</div>
     <div class="cache-info" id="cache-info"></div>
     <button class="cache-clear-btn" id="cache-clear">清除缓存</button>
   </div>
-  <div class="settings-group">
-    <div class="settings-label">文本替换<label class="switch" title="开启/关闭所有替换规则" style="position:relative"><input type="checkbox" id="switch-rep"><span class="slider"></span></label></div>
-    <div class="settings-hint">渲染时全局替换，可用于替换人名、去广告文本</div>
-    <div id="rep-list" class="rep-list"></div>
-    <div class="rep-add">
-      <input type="text" id="rep-f" placeholder="查找" maxlength="60" autocomplete="off">
-      <span class="rep-arrow">→</span>
-      <input type="text" id="rep-t" placeholder="替换为" maxlength="60" autocomplete="off">
-      <button type="button" id="rep-add-btn">添加</button>
+  <details class="settings-group fold" data-scope="reader">
+    <summary class="settings-label">文本替换<label class="switch" title="开启/关闭所有替换规则" style="position:relative"><input type="checkbox" id="switch-rep"><span class="slider"></span></label></summary>
+    <div class="fold-body">
+      <div class="settings-hint">渲染时全局替换，可用于替换人名、去广告文本</div>
+      <div id="rep-list" class="rep-list"></div>
+      <div class="rep-add">
+        <input type="text" id="rep-f" placeholder="查找" maxlength="60" autocomplete="off">
+        <span class="rep-arrow">→</span>
+        <input type="text" id="rep-t" placeholder="替换为" maxlength="60" autocomplete="off">
+        <button type="button" id="rep-add-btn">添加</button>
+      </div>
     </div>
-  </div>
-  <div class="settings-group">
-    <div class="settings-label">高亮词<span class="settings-hint">正文着色</span></div>
-    <div class="settings-hint">匹配到的词语会在正文中着色显示，可突出角色名、关键词语</div>
-    <div id="hl-list" class="hl-list"></div>
-    <div class="hl-add">
-      <input type="text" id="hl-input" placeholder="输入要高亮的词" maxlength="30" autocomplete="off">
-      <div class="hl-colors" id="hl-colors"></div>
-      <button type="button" id="hl-add-btn">添加</button>
+  </details>
+  <details class="settings-group fold" data-scope="reader">
+    <summary class="settings-label">高亮词<span class="settings-hint">正文着色</span></summary>
+    <div class="fold-body">
+      <div class="settings-hint">匹配到的词语会在正文中着色显示，可突出角色名、关键词语</div>
+      <div id="hl-list" class="hl-list"></div>
+      <div class="hl-add">
+        <input type="text" id="hl-input" placeholder="输入要高亮的词" maxlength="30" autocomplete="off">
+        <div class="hl-colors" id="hl-colors"></div>
+        <button type="button" id="hl-add-btn">添加</button>
+      </div>
     </div>
-  </div>
-  <div class="settings-group">
+  </details>
+  <div class="settings-group" data-scope="reader">
     <div class="settings-label">番茄钟时长<span id="val-pomo">25 分钟</span></div>
     <input type="range" id="range-pomo" min="10" max="60" step="5" value="25">
   </div>
-  <div class="settings-group">
+  <div class="settings-group" data-scope="reader">
     <div class="settings-label">常驻章节标题<label class="switch" title="阅读区顶部常驻显示当前章节标题"><input type="checkbox" id="switch-sticky"><span class="slider"></span></label></div>
   </div>
-  <div class="settings-group cat-group">
+  <div class="settings-group cat-group" data-scope="shelf">
     <div class="settings-label">书架分类</div>
     <div class="cat-add"><input type="text" id="cat-input" placeholder="新分类名" maxlength="12" autocomplete="off"><button type="button" id="cat-add-btn">添加</button></div>
     <div id="cat-list" class="cat-list"></div>

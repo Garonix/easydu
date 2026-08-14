@@ -427,3 +427,14 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .cat-item input{flex:1;min-width:0;padding:2px 6px;border:1px solid var(--accent);border-radius:4px;background:var(--bg);color:var(--text);font:inherit;font-size:.8rem;outline:none}
 .cat-count{font-size:.68rem;color:var(--text-sec);flex-shrink:0}
 .cat-empty,.rep-empty,.hl-empty{padding:8px;text-align:center;font-size:.75rem;color:var(--text-sec)}
+
+/* ===== 设置面板折叠组 ===== */
+.settings-group.fold{border:1px solid var(--border);border-radius:10px;padding:0 12px;margin-bottom:14px;background:var(--bg)}
+.settings-group.fold summary{list-style:none;cursor:pointer;padding:12px 0;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.settings-group.fold summary::-webkit-details-marker{display:none}
+.settings-group.fold summary .settings-label{margin-bottom:0;display:flex;align-items:center;gap:8px;flex:1}
+.settings-group.fold summary::after{content:"▸";color:var(--text-sec);font-size:.8rem;transition:transform .2s;flex-shrink:0}
+.settings-group.fold[open] summary::after{transform:rotate(90deg)}
+.settings-group.fold .fold-body{padding-bottom:12px}
+.settings-group.fold[open] summary{padding-bottom:8px}
+.settings-group.fold[open] summary::after{transform:rotate(90deg)}
