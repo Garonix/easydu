@@ -41,6 +41,9 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.2" y2="16.2"/></svg>
           <input type="search" id="bs-search-input" placeholder="搜索书架" autocomplete="off">
         </label>
+        <select id="bs-cat" aria-label="书架分类筛选">
+          <option value="__all__">全部分类</option>
+        </select>
         <select id="bs-sort" aria-label="书架排序">
           <option value="recent">最近阅读</option>
           <option value="title">书名排序</option>
@@ -79,6 +82,7 @@
     <button class="tb-btn" id="btn-search" title="搜索"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
     <button class="tb-btn" id="btn-bm" title="书签"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>
     <button class="tb-btn" id="btn-theme" title="主题"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+    <button class="tb-btn" id="btn-pomo" title="番茄钟"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg></button>
     <button class="tb-btn" id="btn-settings" title="设置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </header>
 
@@ -93,12 +97,13 @@
   <div id="sidebar-overlay"></div>
   <aside id="sidebar">
     <div class="sidebar-head"><b id="sidebar-title">—</b><span id="sidebar-info">—</span></div>
-    <div class="sidebar-tabs"><button class="stab active" data-tab="toc">目录</button><button class="stab" data-tab="bm">书签</button></div>
+    <div class="sidebar-tabs"><button class="stab active" data-tab="toc">目录</button><button class="stab" data-tab="bm">书签</button><button class="stab" data-tab="ant">笔记</button></div>
     <div id="toc-panel" class="stab-panel active"><div id="toc-list"></div></div>
     <div id="bm-panel" class="stab-panel"><div id="bm-list"></div></div>
+    <div id="ant-panel" class="stab-panel"><div id="ant-list"></div></div>
   </aside>
 
-  <main id="content"><div id="content-inner"></div></main>
+  <main id="content"><div id="sticky-head"></div><div id="content-inner"></div></main>
   <div id="progress-track"><div id="progress-bar"><div id="progress-fill"></div><div id="progress-thumb"></div></div><div id="progress-tip">0%</div></div>
 </div>
 
@@ -129,9 +134,64 @@
     <div class="cache-info" id="cache-info"></div>
     <button class="cache-clear-btn" id="cache-clear">清除缓存</button>
   </div>
+  <div class="settings-group">
+    <div class="settings-label">文本替换<label class="switch" title="开启/关闭所有替换规则" style="position:relative"><input type="checkbox" id="switch-rep"><span class="slider"></span></label></div>
+    <div class="settings-hint">渲染时全局替换，可用于替换人名、去广告文本</div>
+    <div id="rep-list" class="rep-list"></div>
+    <div class="rep-add">
+      <input type="text" id="rep-f" placeholder="查找" maxlength="60" autocomplete="off">
+      <span class="rep-arrow">→</span>
+      <input type="text" id="rep-t" placeholder="替换为" maxlength="60" autocomplete="off">
+      <button type="button" id="rep-add-btn">添加</button>
+    </div>
+  </div>
+  <div class="settings-group">
+    <div class="settings-label">高亮词<span class="settings-hint">正文着色</span></div>
+    <div class="settings-hint">匹配到的词语会在正文中着色显示，可突出角色名、关键词语</div>
+    <div id="hl-list" class="hl-list"></div>
+    <div class="hl-add">
+      <input type="text" id="hl-input" placeholder="输入要高亮的词" maxlength="30" autocomplete="off">
+      <div class="hl-colors" id="hl-colors"></div>
+      <button type="button" id="hl-add-btn">添加</button>
+    </div>
+  </div>
+  <div class="settings-group">
+    <div class="settings-label">番茄钟时长<span id="val-pomo">25 分钟</span></div>
+    <input type="range" id="range-pomo" min="10" max="60" step="5" value="25">
+  </div>
+  <div class="settings-group">
+    <div class="settings-label">常驻章节标题<label class="switch" title="阅读区顶部常驻显示当前章节标题"><input type="checkbox" id="switch-sticky"><span class="slider"></span></label></div>
+  </div>
+  <div class="settings-group cat-group">
+    <div class="settings-label">书架分类</div>
+    <div class="cat-add"><input type="text" id="cat-input" placeholder="新分类名" maxlength="12" autocomplete="off"><button type="button" id="cat-add-btn">添加</button></div>
+    <div id="cat-list" class="cat-list"></div>
+  </div>
 </aside>
 
 <div id="toast"></div>
+
+<!-- 选区浮动工具条：划线 -->
+<div id="sel-toolbar" aria-hidden="true">
+  <div class="st-colors" id="st-colors"></div>
+  <button type="button" class="st-close" id="st-close" title="取消"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+</div>
+
+<!-- 划线操作弹窗 -->
+<div id="ant-pop" aria-hidden="true">
+  <div class="ant-pop-head"><b>划线</b><button type="button" class="ant-pop-close" id="ant-pop-close" aria-label="关闭"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <textarea id="ant-note" placeholder="添加备注（可选）" rows="3"></textarea>
+  <div class="ant-pop-btns">
+    <button type="button" class="ant-pop-save" id="ant-pop-save">保存</button>
+    <button type="button" class="ant-pop-del" id="ant-pop-del">删除划线</button>
+  </div>
+</div>
+
+<!-- 书架分类选择浮层 -->
+<div id="cat-pop" aria-hidden="true">
+  <div class="cat-pop-head">设置分类</div>
+  <div id="cat-pop-list"></div>
+</div>
 
 <!-- 确认弹框（渐入渐出） -->
 <div class="confirm-overlay" id="confirm-overlay" role="dialog" aria-modal="true" aria-hidden="true">

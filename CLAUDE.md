@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**easydu** (简读/静读) is a browser-based Chinese ebook reader. It supports `.txt`, `.md`, and `.epub` formats with features including bookshelf management, reading progress tracking, bookmarks, full-text search, and reading statistics.
+**easydu** (简读/静读) is a browser-based Chinese ebook reader. It supports `.txt`, `.md`, and `.epub` formats with features including bookshelf management (with categories), reading progress tracking, bookmarks, full-text search, reading statistics, highlight words coloring, annotation underlining, text replace rules, Pomodoro timer, and sticky chapter header.
 
 ## Tech Stack
 
@@ -48,13 +48,21 @@ The reader core in [script.js](script.js) is organized by functional sections (r
 | Library | `getLib`, `saveLib`, `addToLib`, `removeFromLib` — bookshelf metadata in localStorage |
 | Cover Generation | `generateCoverDataUrl` — Canvas-based procedural cover art with gradient colors |
 | Settings | `loadSettings`, `saveSettings`, `applySettings` — theme, font, layout preferences |
-| Bookshelf UI | `renderBookshelf`, `showBookshelf`, `hideBookshelf` — card grid with progress bars |
+| Bookshelf UI | `renderBookshelf`, `showBookshelf`, `hideBookshelf` — card grid with progress bars, category filter |
 | File Handling | `handleFile`, `handleEPUB`, `loadBookFromShelf`, `deleteBook` — import/open/delete (EPUB parsing itself lives in epub.js) |
 | Content Splitting | `splitTxt`, `splitByPara`, `splitMD` — chapter detection (Chinese chapter patterns for TXT) |
 | Seamless Rendering | `initSeamless`, `appendChapter`, `prependChapter`, `checkInfinite`, `trimChapters` — virtual scroll / infinite loading |
+| Text Decor | `applyTextDecor`, `applyAnnotations` — called at the end of `createChapterBlock`: replace rules → highlight words coloring → annotation underline restore (offset-based, against final rendered textContent) |
+| Highlight Words | `getHlList`, `saveHlList`, `hlColorMap`, `buildHlRegex` — user-defined keyword coloring, stored in `jd_hl` |
+| Replace Rules | `getRepRules`, `saveRepRules`, `repAnyOn` — global find/replace applied at render time, stored in `jd_rep` |
+| Annotations | `getAnnotations`, `saveAnnotations`, `createAnt`, `showAntPop`, `renderAnnotations` — underline + note on selected text; stored in `jd_ant_<file>`, keyed by chapter + char offsets |
+| Selection Toolbar | `initSelToolbar`, `showSelToolbar` — floating color-dot toolbar on text selection (mouseup/touchend) |
+| Bookshelf Categories | `getCats`, `saveCats`, `openCatPop`, `setBookCat`, `renderCatList` — per-book category, filter, manage in settings; categories in `jd_cats`, book field `cat` |
+| Sticky Header | `updateStickyHead` — current chapter title pinned at top of reader (`#sticky-head`), toggled by setting `stickyHead` |
+| Pomodoro | `initPomo`, `togglePomo`, `updatePomoBtn`, `finishPomo` — reading timer in toolbar (`#btn-pomo`), duration from setting `pomoMin` |
 | Progress | `getAccurateProgress`, `updateProgress`, `jumpToPercent`, `setupProgressDrag` — scroll-position-granular progress |
 | Bookmarks | `toggleBookmark`, `getBookmarks`, `renderBookmarks` — bookmarks with text snippets |
-| Search | `doSearch`, `applyHighlights`, `navigateToResult` — full-text search with highlighting |
+| Search | `doSearch`, `applyHighlights`, `navigateToResult` — full-text search with highlighting (`clearHighlights` unwraps `mark.shl` preserving inner annotation/highlight spans) |
 | TOC | `buildTOC`, `highlightToc` — sidebar table of contents with current-chapter tracking |
 | Reading Timer | `startReadingTimer`, `stopReadingTimer`, `tickReading` — reading time statistics |
 | Events | `setupEvents`, `setupSettingsEvents` — DOM events including mobile touch gestures (WebDAV events live in webdav.js) |
@@ -65,7 +73,7 @@ The app has two main views, toggled via CSS class `.active`:
 
 1. **Bookshelf** (`#bookshelf`) — default view, card grid of imported books
 2. **Reader** (`#reader`) — reading view with overlay panels:
-   - Sidebar (`#sidebar`) — TOC and bookmarks (slides from left)
+   - Sidebar (`#sidebar`) — TOC, bookmarks, and annotation notes tabs (slides from left)
    - Settings (`#settings`) — reading preferences (slides from right)
    - Search bar (`#search-bar`) — drops down below toolbar
    - Toolbar (`#toolbar`) — top nav, appears on tap/click in top half
