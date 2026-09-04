@@ -27,7 +27,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
             <span>本地上传</span>
           </button>
-          <button class="import-dropdown-item" id="import-webdav">
+          <button class="import-dropdown-item" id="import-webdav" style="display:none">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
             <span>远程上传</span>
           </button>
@@ -128,27 +128,40 @@
     <div class="cat-add"><input type="text" id="cat-input" placeholder="新标签名" maxlength="12" autocomplete="off"><button type="button" id="cat-add-btn">添加</button></div>
     <div id="cat-list" class="cat-list"></div>
   </div>
-  <div class="settings-group" data-scope="shelf">
-    <div class="settings-label">WebDAV 关书同步</div>
-    <div class="settings-row">
-      <select id="select-dav-sync" style="width:100%;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font:inherit;padding:0 8px;font-size:.82rem">
-        <option value="auto">自动同步（推荐，无打扰）</option>
-        <option value="ask">每次询问</option>
-        <option value="off">不同步</option>
-      </select>
+  <details class="settings-group fold" data-scope="shelf" id="webdav-settings-fold">
+    <summary class="settings-label"><span>WebDAV 配置与同步</span><span class="webdav-status-badge disconnected" id="webdav-status-badge">未配置</span></summary>
+    <div class="fold-body">
+      <div class="webdav-form-group">
+        <label for="webdav-cfg-url">服务器地址</label>
+        <input type="url" id="webdav-cfg-url" placeholder="https://example.com/dav/" autocomplete="url">
+      </div>
+      <div class="webdav-form-group">
+        <label for="webdav-cfg-user">用户名</label>
+        <input type="text" id="webdav-cfg-user" placeholder="用户名（可留空）" autocomplete="username">
+      </div>
+      <div class="webdav-form-group">
+        <label for="webdav-cfg-pass">密码</label>
+        <input type="password" id="webdav-cfg-pass" placeholder="密码（可留空）" autocomplete="current-password">
+      </div>
+      <div class="webdav-form-group">
+        <label for="select-dav-sync">关书同步策略</label>
+        <select id="select-dav-sync" style="width:100%;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font:inherit;padding:0 8px;font-size:.82rem">
+          <option value="auto">自动同步（推荐，无打扰）</option>
+          <option value="ask">每次询问</option>
+          <option value="off">不同步</option>
+        </select>
+      </div>
+      <div class="webdav-actions" style="margin-top:12px">
+        <button type="button" class="webdav-btn webdav-btn-secondary" id="webdav-cfg-clear" style="flex:1">清除</button>
+        <button type="button" class="webdav-btn webdav-btn-primary" id="webdav-cfg-save" style="flex:2">保存并测试</button>
+      </div>
+      <div id="webdav-cfg-msg" style="display:none;font-size:.82rem;margin-top:8px;padding:6px 10px;border-radius:6px;line-height:1.4"></div>
     </div>
-  </div>
+  </details>
   <div class="settings-group cache-group" data-scope="shelf">
     <div class="settings-label">缓存管理</div>
     <div class="cache-info" id="cache-info"></div>
     <button class="cache-clear-btn" id="cache-clear">清除缓存</button>
-  </div>
-  <div class="settings-group stats-group" data-scope="shelf">
-    <div class="settings-label">阅读统计</div>
-    <div class="stats-row"><span>本月</span><span id="stats-month">0 分钟</span></div>
-    <div class="stats-row"><span>总阅读</span><span id="stats-total">0 分钟</span></div>
-    <div class="stats-row"><span>今日</span><span id="stats-today">0 分钟</span></div>
-    <div class="stats-row"><span>本书</span><span id="stats-book">0 分钟</span></div>
   </div>
   <details class="settings-group fold" data-scope="reader">
     <summary class="settings-label">文本替换<label class="switch" title="开启/关闭所有替换规则" style="position:relative"><input type="checkbox" id="switch-rep"><span class="slider"></span></label></summary>
@@ -179,6 +192,13 @@
   </div>
   <div class="settings-group" data-scope="reader">
     <div class="settings-label">常驻章节标题<label class="switch" title="阅读区顶部常驻显示当前章节标题"><input type="checkbox" id="switch-sticky"><span class="slider"></span></label></div>
+  </div>
+  <div class="settings-group stats-group" data-scope="reader">
+    <div class="settings-label">阅读统计</div>
+    <div class="stats-row"><span>本月</span><span id="stats-month">0 分钟</span></div>
+    <div class="stats-row"><span>总阅读</span><span id="stats-total">0 分钟</span></div>
+    <div class="stats-row"><span>今日</span><span id="stats-today">0 分钟</span></div>
+    <div class="stats-row"><span>本书</span><span id="stats-book">0 分钟</span></div>
   </div>
 </aside>
 
@@ -236,48 +256,19 @@
 <div class="webdav-modal" id="webdav-modal" role="dialog" aria-modal="true" aria-labelledby="webdav-modal-title" aria-hidden="true">
   <div class="webdav-modal-content" tabindex="-1">
     <div class="webdav-modal-header">
-      <h3 id="webdav-modal-title">远程上传</h3>
-      <button type="button" class="webdav-modal-close" id="webdav-modal-close" aria-label="关闭远程上传">&times;</button>
-    </div>
-    
-    <!-- 地址输入步骤 -->
-    <div class="webdav-step" id="webdav-step-url">
-      <div class="webdav-form-group">
-        <label for="webdav-url">服务器地址</label>
-        <input type="url" id="webdav-url" placeholder="https://example.com/dav/" autocomplete="url">
-      </div>
-      <button type="button" class="webdav-btn webdav-btn-primary" id="webdav-connect">连接</button>
-    </div>
-    
-    <!-- 认证步骤 -->
-    <div class="webdav-step" id="webdav-step-auth" style="display:none">
-      <div class="webdav-form-group">
-        <label for="webdav-username">用户名</label>
-        <input type="text" id="webdav-username" placeholder="用户名" autocomplete="username">
-      </div>
-      <div class="webdav-form-group">
-        <label for="webdav-password">密码</label>
-        <input type="password" id="webdav-password" placeholder="密码" autocomplete="current-password">
-      </div>
-      <div class="webdav-checkbox">
-        <input type="checkbox" id="webdav-remember">
-        <label for="webdav-remember">记住账号密码</label>
-      </div>
-      <div class="webdav-actions">
-        <button type="button" class="webdav-btn webdav-btn-secondary" id="webdav-auth-back">返回</button>
-        <button type="button" class="webdav-btn webdav-btn-primary" id="webdav-login">登录</button>
-      </div>
+      <h3 id="webdav-modal-title">WebDAV 远程导入</h3>
+      <button type="button" class="webdav-modal-close" id="webdav-modal-close" aria-label="关闭远程导入">&times;</button>
     </div>
     
     <!-- 文件浏览步骤 -->
-    <div class="webdav-step" id="webdav-step-browse" style="display:none">
+    <div class="webdav-step" id="webdav-step-browse">
       <div class="webdav-breadcrumb" id="webdav-breadcrumb"></div>
       <div class="webdav-file-list" id="webdav-file-list">
         <div class="webdav-loading">加载中...</div>
       </div>
       <div class="webdav-actions">
         <button type="button" class="webdav-btn webdav-btn-secondary" id="webdav-refresh">刷新</button>
-        <button type="button" class="webdav-btn webdav-btn-secondary" id="webdav-back">返回</button>
+        <button type="button" class="webdav-btn webdav-btn-secondary" id="webdav-back">返回上级</button>
       </div>
     </div>
   </div>
