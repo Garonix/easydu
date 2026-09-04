@@ -41,8 +41,8 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.2" y2="16.2"/></svg>
           <input type="search" id="bs-search-input" placeholder="搜索书架" autocomplete="off">
         </label>
-        <select id="bs-cat" aria-label="书架分类筛选">
-          <option value="__all__">全部分类</option>
+        <select id="bs-cat" aria-label="书籍标签筛选">
+          <option value="__all__">全部标签</option>
         </select>
         <select id="bs-sort" aria-label="书架排序">
           <option value="recent">最近阅读</option>
@@ -123,6 +123,26 @@
     <button type="button" class="color-swatch" data-color="#dcd6cc" title="浅灰" style="background:#dcd6cc"></button>
   </div></div>
   <div class="settings-group" data-scope="reader"><div class="settings-label">繁转简<label class="switch" title="将繁体内容转为简体显示"><input type="checkbox" id="switch-conv"><span class="slider"></span></label></div></div>
+  <div class="settings-group cat-group" data-scope="shelf">
+    <div class="settings-label">书籍标签</div>
+    <div class="cat-add"><input type="text" id="cat-input" placeholder="新标签名" maxlength="12" autocomplete="off"><button type="button" id="cat-add-btn">添加</button></div>
+    <div id="cat-list" class="cat-list"></div>
+  </div>
+  <div class="settings-group" data-scope="shelf">
+    <div class="settings-label">WebDAV 关书同步</div>
+    <div class="settings-row">
+      <select id="select-dav-sync" style="width:100%;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font:inherit;padding:0 8px;font-size:.82rem">
+        <option value="auto">自动同步（推荐，无打扰）</option>
+        <option value="ask">每次询问</option>
+        <option value="off">不同步</option>
+      </select>
+    </div>
+  </div>
+  <div class="settings-group cache-group" data-scope="shelf">
+    <div class="settings-label">缓存管理</div>
+    <div class="cache-info" id="cache-info"></div>
+    <button class="cache-clear-btn" id="cache-clear">清除缓存</button>
+  </div>
   <div class="settings-group stats-group" data-scope="shelf">
     <div class="settings-label">阅读统计</div>
     <div class="stats-row"><span>本月</span><span id="stats-month">0 分钟</span></div>
@@ -130,15 +150,9 @@
     <div class="stats-row"><span>今日</span><span id="stats-today">0 分钟</span></div>
     <div class="stats-row"><span>本书</span><span id="stats-book">0 分钟</span></div>
   </div>
-  <div class="settings-group cache-group" data-scope="shelf">
-    <div class="settings-label">缓存管理</div>
-    <div class="cache-info" id="cache-info"></div>
-    <button class="cache-clear-btn" id="cache-clear">清除缓存</button>
-  </div>
   <details class="settings-group fold" data-scope="reader">
     <summary class="settings-label">文本替换<label class="switch" title="开启/关闭所有替换规则" style="position:relative"><input type="checkbox" id="switch-rep"><span class="slider"></span></label></summary>
     <div class="fold-body">
-      <div class="settings-hint">渲染时全局替换，可用于替换人名、去广告文本</div>
       <div id="rep-list" class="rep-list"></div>
       <div class="rep-add">
         <input type="text" id="rep-f" placeholder="查找" maxlength="60" autocomplete="off">
@@ -149,15 +163,14 @@
     </div>
   </details>
   <details class="settings-group fold" data-scope="reader">
-    <summary class="settings-label">高亮词<span class="settings-hint">正文着色</span></summary>
+    <summary class="settings-label">高亮词</summary>
     <div class="fold-body">
-      <div class="settings-hint">匹配到的词语会在正文中着色显示，可突出角色名、关键词语</div>
       <div id="hl-list" class="hl-list"></div>
       <div class="hl-add">
         <input type="text" id="hl-input" placeholder="输入要高亮的词" maxlength="30" autocomplete="off">
-        <div class="hl-colors" id="hl-colors"></div>
         <button type="button" id="hl-add-btn">添加</button>
       </div>
+      <div class="hl-colors" id="hl-colors"></div>
     </div>
   </details>
   <div class="settings-group" data-scope="reader">
@@ -166,11 +179,6 @@
   </div>
   <div class="settings-group" data-scope="reader">
     <div class="settings-label">常驻章节标题<label class="switch" title="阅读区顶部常驻显示当前章节标题"><input type="checkbox" id="switch-sticky"><span class="slider"></span></label></div>
-  </div>
-  <div class="settings-group cat-group" data-scope="shelf">
-    <div class="settings-label">书架分类</div>
-    <div class="cat-add"><input type="text" id="cat-input" placeholder="新分类名" maxlength="12" autocomplete="off"><button type="button" id="cat-add-btn">添加</button></div>
-    <div id="cat-list" class="cat-list"></div>
   </div>
 </aside>
 
@@ -192,9 +200,9 @@
   </div>
 </div>
 
-<!-- 书架分类选择浮层 -->
+<!-- 书籍标签选择浮层 -->
 <div id="cat-pop" aria-hidden="true">
-  <div class="cat-pop-head">设置分类</div>
+  <div class="cat-pop-head">设置标签</div>
   <div id="cat-pop-list"></div>
 </div>
 
@@ -205,6 +213,19 @@
     <div class="confirm-btns">
       <button type="button" class="confirm-btn cancel" id="confirm-cancel">取消</button>
       <button type="button" class="confirm-btn ok" id="confirm-ok">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- WebDAV 配置冲突选择弹框 -->
+<div class="confirm-overlay" id="dav-conflict" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="confirm-box dav-conflict-box">
+    <div class="dav-conflict-title">检测到配置冲突</div>
+    <div class="dav-conflict-sub">本机与远端（WebDAV）都保存了这本书的配置，请选择以哪一方为准：</div>
+    <div class="dav-conflict-list" id="dav-conflict-list"></div>
+    <div class="confirm-btns">
+      <button type="button" class="confirm-btn dav-conflict-btn" id="dav-conflict-remote">使用远端配置</button>
+      <button type="button" class="confirm-btn ok" id="dav-conflict-local">使用本地配置</button>
     </div>
   </div>
 </div>

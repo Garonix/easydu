@@ -295,13 +295,36 @@ function webdavDownloadFile(item){
         if(ext==='epub'){
           window.parseEPUB(buf,function(result,err){
             if(err||!result){window.hideLoading();window.toast('EPUB 解析失败: '+(err||'未知错误'));return}
-            window.finishEpubImport(item.name,item.size,result,source);
+            window.finishEpubImport(item.name,item.size,result,source,'webdav');
           });
         }else{
           window.S.rawText=window.decodeBuffer(buf);
           var cv=window.generateCoverDataUrl(item.name);
-          window.dbSave(window.S.fileName,{text:window.S.rawText,type:window.S.fileType,size:window.S.fileSize,cover:cv},function(){window.addToLib(window.S.fileName,window.S.fileSize,window.S.fileType,cv)});
+          window.addToLib(window.S.fileName,window.S.fileSize,window.S.fileType,cv,'webdav');
+          window.dbSave(window.S.fileName,{text:window.S.rawText,type:window.S.fileType,size:window.S.fileSize,cover:cv},function(){});
           window.processContent();
+          /* 导入后检测远端进度（checkpoint 下载） */
+          (function(fname){
+            if(!window.davSyncAvailable||!window.davSyncAvailable())return;
+            window.davDownloadCheckpoint(fname,function(remote){
+              if(!remote||!remote.prog)return;
+              var localProg=window.loadProg?window.loadProg(fname):null;
+              if(!localProg||window.davRemoteAhead(localProg,remote.prog)){
+                setTimeout(function(){
+                  window.confirmBox('检测到远端进度（第'+(remote.prog.ch+1)+'章 '+Math.round(remote.prog.pct||0)+'%），是否跳转？','跳转到远端进度',function(){
+                    window.davApplyRemoteData(fname,remote);
+                    setTimeout(function(){
+                      var np=window.loadProg?window.loadProg(fname):null;
+                      if(np){
+                        if(np.pct&&np.pct>0&&window.jumpToPercent)window.jumpToPercent(np.pct);
+                        else if(window.J)window.J.go(np.ch||0,np.offset||0);
+                      }
+                    },1200);
+                  });
+                },1500);
+              }
+            });
+          })(window.S.fileName);
         }
       }catch(err){console.error(err);window.toast('文件解析失败: '+err.message);window.hideLoading()}
     },window.PROC_DELAY);
@@ -427,9 +450,36 @@ on(webdavUrlInput,'keydown',function(e){if(e.key==='Enter'){e.preventDefault();w
 on(webdavPasswordInput,'keydown',function(e){if(e.key==='Enter'){e.preventDefault();webdavLogin()}});
 
 /* ===== 导出（供 script.js 全局键盘处理） ===== */
+
+/* ===== 配置同步：.easydu 隐藏目录（checkpoint 模式） ===== */
+/* 书籍全部配置 -> <挂载目录>/.easydu/<encodeURIComponent(书名)>.json */
+function davSyncBasePath(){return(webdavCurrentPath||'/').replace(/\/$/,'')+'/.easydu'}
+function davSyncBookPath(name){return davSyncBasePath()+'/'+encodeURIComponent(name)+'.json'}
+function davSyncEnabled(){return!!webdavBaseUrl}
+function davSyncPut(path,data){
+  return webdavFetch(path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+}
+function davSyncGet(path){
+  return webdavFetch(path).then(function(resp){
+    if(resp.status===404)return{ok:true,data:null};
+    if(!resp.ok)return{ok:false,error:'HTTP '+resp.status};
+    return resp.json().then(function(d){return{ok:true,data:d}}).catch(function(){return{ok:true,data:null}});
+  }).catch(function(e){return{ok:false,error:String(e&&e.message||e)}});
+}
+function davSyncDelete(path){return webdavFetch(path,{method:'DELETE'})}
+/* 确保 .easydu 目录存在（已存在时 MKCOL 返回 405/409，忽略即可） */
+function davSyncEnsureDir(){return webdavFetch(davSyncBasePath(),{method:'MKCOL'}).catch(function(){})}
+function davSyncSaveBook(name,payload){return davSyncEnsureDir().then(function(){return davSyncPut(davSyncBookPath(name),payload)})}
+function davSyncLoadBook(name){return davSyncGet(davSyncBookPath(name))}
+function davSyncDeleteBook(name){return davSyncDelete(davSyncBookPath(name))}
+
 window.WebDAV={
   isOpen:function(){return webdavModal.classList.contains('show')},
   hide:hideWebDAVModal,
-  trapFocus:trapWebDAVFocus
+  trapFocus:trapWebDAVFocus,
+  syncEnabled:davSyncEnabled,
+  syncSaveBook:davSyncSaveBook,
+  syncLoadBook:davSyncLoadBook,
+  syncDeleteBook:davSyncDeleteBook
 };
 })();
