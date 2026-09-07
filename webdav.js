@@ -356,6 +356,7 @@ function handleClearConfig(){
     webdavMountPath='/';
     webdavCurrentPath='/';
     webdavAuth='';
+    _davDirEnsured=false;
     if(webdavCfgUrl)webdavCfgUrl.value='';
     if(webdavCfgUser)webdavCfgUser.value='';
     if(webdavCfgPass)webdavCfgPass.value='';
@@ -539,10 +540,77 @@ function webdavDownloadFile(item){
     window.showLoading('正在解析内容...');
     setTimeout(function(){
       try{
+        function checkRemoteAfterImport(fname){
+          if(!window.davSyncAvailable||!window.davSyncAvailable())return;
+          window.davDownloadCheckpoint(fname,function(remote){
+            if(!remote)return;
+            if((remote.bm&&remote.bm.length)||(remote.delBm&&remote.delBm.length)){
+              try{
+                var curBm=JSON.parse(localStorage.getItem('jd_bm_'+fname)||'[]');
+                var mergedBm=window.mergeBookmarks(fname,curBm,remote.bm||[],remote.delBm||[]);
+                localStorage.setItem('jd_bm_'+fname,JSON.stringify(mergedBm));
+              }catch(e){}
+            }
+            if((remote.ant&&remote.ant.length)||(remote.delAnt&&remote.delAnt.length)){
+              try{
+                var curAnt=JSON.parse(localStorage.getItem('jd_ant_'+fname)||'[]');
+                var mergedAnt=window.mergeAnnotations(fname,curAnt,remote.ant||[],remote.delAnt||[]);
+                localStorage.setItem('jd_ant_'+fname,JSON.stringify(mergedAnt));
+              }catch(e){}
+            }
+            if((remote.hl&&remote.hl.length)||(remote.delHl&&remote.delHl.length)){
+              try{
+                var curHl=JSON.parse(localStorage.getItem('jd_hl_'+fname)||'[]');
+                var mergedHl=window.mergeHlList(fname,curHl,remote.hl||[],remote.delHl||[]);
+                localStorage.setItem('jd_hl_'+fname,JSON.stringify(mergedHl));
+              }catch(e){}
+            }
+            if((remote.rep&&remote.rep.length)||(remote.delRep&&remote.delRep.length)){
+              try{
+                var curRep=JSON.parse(localStorage.getItem('jd_rep_'+fname)||'[]');
+                var mergedRep=window.mergeRepRules(fname,curRep,remote.rep||[],remote.delRep||[]);
+                localStorage.setItem('jd_rep_'+fname,JSON.stringify(mergedRep));
+              }catch(e){}
+            }
+            if(window.S&&window.S.fileName===fname){
+              if(window.clearBookCache)window.clearBookCache();
+              if(window.renderBookmarks)window.renderBookmarks();
+              if(window.renderAnnotations)window.renderAnnotations();
+              if(window.renderHlList)window.renderHlList();
+              if(window.renderRepList)window.renderRepList();
+              if(window.updateRepSwitch)window.updateRepSwitch();
+              if(window.rerenderCurrent)window.rerenderCurrent();
+            }
+            if(remote.prog){
+              var localProg=window.loadProg?window.loadProg(fname):null;
+              if(!localProg){
+                if(window.davApplyRemoteData)window.davApplyRemoteData(fname,remote);
+                if((remote.prog.ch>0||remote.prog.offset>0)&&window.J){
+                  setTimeout(function(){
+                    window.J.go(remote.prog.ch||0,Math.max(0,remote.prog.offset||0));
+                  },500);
+                }
+              }else if(window.davRemoteAhead&&window.davRemoteAhead(localProg,remote.prog)){
+                setTimeout(function(){
+                  window.confirmBox('检测到远端进度（第'+(remote.prog.ch+1)+'章 '+Math.round(remote.prog.pct||0)+'%），是否跳转？','跳转到远端进度',function(){
+                    if(window.davApplyRemoteData)window.davApplyRemoteData(fname,remote);
+                    setTimeout(function(){
+                      var np=window.loadProg?window.loadProg(fname):null;
+                      if(np&&window.J){
+                        window.J.go(np.ch||0,Math.max(0,np.offset||0));
+                      }
+                    },500);
+                  });
+                },1000);
+              }
+            }
+          });
+        }
         if(ext==='epub'){
           window.parseEPUB(buf,function(result,err){
             if(err||!result){window.hideLoading();window.toast('EPUB 解析失败: '+(err||'未知错误'));return}
             window.finishEpubImport(item.name,item.size,result,source,'webdav');
+            checkRemoteAfterImport(item.name);
           });
         }else{
           window.S.rawText=window.decodeBuffer(buf);
@@ -550,44 +618,7 @@ function webdavDownloadFile(item){
           window.addToLib(window.S.fileName,window.S.fileSize,window.S.fileType,cv,'webdav');
           window.dbSave(window.S.fileName,{text:window.S.rawText,type:window.S.fileType,size:window.S.fileSize,cover:cv},function(){});
           window.processContent();
-          /* 导入后检测远端进度（checkpoint 下载） */
-          (function(fname){
-            if(!window.davSyncAvailable||!window.davSyncAvailable())return;
-            window.davDownloadCheckpoint(fname,function(remote){
-              if(!remote)return;
-              if(remote.bm&&remote.bm.length&&window.mergeBookmarks){
-                try{
-                  var curBm=JSON.parse(localStorage.getItem('jd_bm_'+fname)||'[]');
-                  var mergedBm=window.mergeBookmarks(fname,curBm,remote.bm,remote.delBm);
-                  localStorage.setItem('jd_bm_'+fname,JSON.stringify(mergedBm));
-                }catch(e){}
-              }
-              if(remote.ant&&remote.ant.length&&window.mergeAnnotations){
-                try{
-                  var curAnt=JSON.parse(localStorage.getItem('jd_ant_'+fname)||'[]');
-                  var mergedAnt=window.mergeAnnotations(fname,curAnt,remote.ant,remote.delAnt);
-                  localStorage.setItem('jd_ant_'+fname,JSON.stringify(mergedAnt));
-                }catch(e){}
-              }
-              if(remote.prog){
-                var localProg=window.loadProg?window.loadProg(fname):null;
-                if(!localProg||window.davRemoteAhead(localProg,remote.prog)){
-                  setTimeout(function(){
-                    window.confirmBox('检测到远端进度（第'+(remote.prog.ch+1)+'章 '+Math.round(remote.prog.pct||0)+'%），是否跳转？','跳转到远端进度',function(){
-                      window.davApplyRemoteData(fname,remote);
-                      setTimeout(function(){
-                        var np=window.loadProg?window.loadProg(fname):null;
-                        if(np){
-                          if(np.pct&&np.pct>0&&window.jumpToPercent)window.jumpToPercent(np.pct);
-                          else if(window.J)window.J.go(np.ch||0,np.offset||0);
-                        }
-                      },1200);
-                    });
-                  },1500);
-                }
-              }
-            });
-          })(window.S.fileName);
+          checkRemoteAfterImport(window.S.fileName);
         }
       }catch(err){console.error(err);window.toast('文件解析失败: '+err.message);window.hideLoading()}
     },window.PROC_DELAY);
@@ -640,8 +671,13 @@ function davSyncGet(path){
     return resp.json().then(function(d){return{ok:true,data:d}}).catch(function(){return{ok:true,data:null}});
   }).catch(function(e){return{ok:false,error:String(e&&e.message||e)}});
 }
-function davSyncDelete(path){return webdavFetch(path,{method:'DELETE'})}
-function davSyncEnsureDir(){return webdavFetch(davSyncBasePath(),{method:'MKCOL'}).catch(function(){})}
+var _davDirEnsured=false;
+function davSyncEnsureDir(){
+  if(_davDirEnsured)return Promise.resolve();
+  return webdavFetch(davSyncBasePath(),{method:'MKCOL'}).then(function(r){
+    if(r.ok||r.status===405||r.status===409)_davDirEnsured=true;
+  }).catch(function(){});
+}
 function davSyncSaveBook(name,payload,opts){return davSyncEnsureDir().then(function(){return davSyncPut(davSyncBookPath(name),payload,opts)})}
 function davSyncLoadBook(name){return davSyncGet(davSyncBookPath(name))}
 function davSyncDeleteBook(name){return davSyncDelete(davSyncBookPath(name))}

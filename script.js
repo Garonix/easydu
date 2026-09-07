@@ -309,13 +309,14 @@ function generateCoverDataUrl(name){
 function loadSettings(){try{var d=JSON.parse(localStorage.getItem('jd_s'));if(d){S.theme=d.theme||'light';S.fontSize=d.fs||18;S.lineHeight=d.lh||1.85;S.padding=d.pad||'normal';S.textColor=d.tc||'';S.librarySort=d.bsSort||'recent';S.convSimp=d.convSimp===true;S.stickyHead=d.stickyHead!==false;S.pomoMin=d.pomoMin||25;S.libraryCat=d.bsCat||'__all__';S.davSyncMode=d.davSyncMode||'auto'}}catch(e){}}
 function saveSettings(){try{localStorage.setItem('jd_s',JSON.stringify({theme:S.theme,fs:S.fontSize,lh:S.lineHeight,pad:S.padding,tc:S.textColor||'',bsSort:S.librarySort,convSimp:S.convSimp,stickyHead:S.stickyHead,pomoMin:S.pomoMin,bsCat:S.libraryCat,davSyncMode:S.davSyncMode||'auto'}))}catch(e){}}
 function loadHiddenShelf(){
-  try{
-    var saved=localStorage.getItem('jd_hidden_shelf');
-    if(saved===null){S.hiddenShelf=localStorage.getItem('jd_privacy')==='true';localStorage.setItem('jd_hidden_shelf',S.hiddenShelf.toString());localStorage.removeItem('jd_privacy')}
-    else S.hiddenShelf=saved==='true';
-  }catch(e){S.hiddenShelf=false}
+  S.hiddenShelf=false;
+  try{localStorage.removeItem('jd_hidden_shelf');localStorage.removeItem('jd_privacy')}catch(e){}
 }
-function toggleHiddenShelf(){S.hiddenShelf=!S.hiddenShelf;try{localStorage.setItem('jd_hidden_shelf',S.hiddenShelf.toString())}catch(e){}renderBookshelf();toast(S.hiddenShelf?'已显示隐藏书架':'已返回常规书架')}
+function toggleHiddenShelf(){
+  S.hiddenShelf=!S.hiddenShelf;
+  renderBookshelf();
+  toast(S.hiddenShelf?'已显示隐藏书架':'已返回常规书架');
+}
 function updateReaderTitle(){if(!reader||!reader.classList.contains('active')||!tbTitle||!S.fileName)return;tbTitle.textContent=S.fileName.replace(/\.[^.]+$/,'')}
 /* ===== 繁简转换（繁体→简体逐字映射，非翻译） ===== */
 function convText(str){return S.convSimp&&window.Convert?Convert.t2s(str):str}
@@ -406,7 +407,14 @@ function renderBookshelf(){
     var dt=new Date(b.ts);var ds=(dt.getMonth()+1)+'/'+dt.getDate();
     var meta=fmtSize(b.s||0)+' · '+ds+(pct?' · '+pct+'%':'');
     var cc=b.cat?catColor(b.cat):'';
-    var tagHtml=b.cat?'<div class="bs-card-tags"><span class="bs-card-badge"'+(cc?' style="background:'+cc+'1a;color:'+cc+'"':'')+'>'+esc(b.cat)+'</span></div>':'';
+    var badges=[];
+    if(b.src==='webdav'){
+      badges.push('<span class="bs-card-dav" title="WebDAV 云端同步"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:2px"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>云端</span>');
+    }
+    if(b.cat){
+      badges.push('<span class="bs-card-badge"'+(cc?' style="background:'+cc+'1a;color:'+cc+'"':'')+'>'+esc(b.cat)+'</span>');
+    }
+    var tagHtml=badges.length?'<div class="bs-card-tags">'+badges.join('')+'</div>':'';
     var tpBadge=b.tp==='epub'?'EPUB':b.tp==='md'?'MD':'TXT';
     return '<article class="bs-card" data-name="'+esc(b.n)+'" style="animation-delay:'+i*.04+'s">' +
       '<button type="button" class="bs-card-open" aria-label="阅读 '+esc(title)+'">' +
@@ -531,7 +539,7 @@ function afterParseEPUB(){
     S.chapters=[{title:'全文',content:S.rawText||'(空文件)',html:'',_loaded:true}];
     S.storeMode='inline';
   }
-  var sv=loadProg(S.fileName);var sc=sv?Math.min(sv.ch,S.chapters.length-1):0;var so=sv?sv.offset||0:0;
+  var sv=loadProg(S.fileName);var sc=sv?Math.min(sv.ch,S.chapters.length-1):0;var so=sv?Math.max(0,sv.offset||0):0;
   S.searchQuery='';S.searchResults=[];S.searchIdx=-1;
   renderBookmarks();showReader();initSeamless(sc,so);
 }
@@ -593,38 +601,67 @@ function loadBookFromShelf(name){
     S.fileName=name;S.fileSize=data.size||0;S.fileType=data.type||'txt';
     _idbPersistReady=true;
     /* checkpoint 下载：检测远端进度与笔记，若大于本地则提示跳转 */
-    var lib=getLib(),isRemote=false;
-    for(var i=0;i<lib.length;i++){if(lib[i].n===name&&lib[i].src==='webdav'){isRemote=true;break}}
-    if(isRemote&&davSyncAvailable()){
+    var lib=getLib(),isRemote=false,bookIdx=-1;
+    for(var i=0;i<lib.length;i++){
+      if(lib[i].n===name){
+        bookIdx=i;
+        if(lib[i].src==='webdav')isRemote=true;
+        break;
+      }
+    }
+    if(davSyncAvailable()&&(isRemote||bookIdx>=0)){
       var localProg=loadProg(name);
       davDownloadCheckpoint(name,function(remote){
         if(remote){
-          if(remote.bm&&remote.bm.length){
+          if(!isRemote&&bookIdx>=0){
+            lib[bookIdx].src='webdav';
+            saveLib(lib);
+            isRemote=true;
+          }
+          if((remote.bm&&remote.bm.length)||(remote.delBm&&remote.delBm.length)){
             try{
               var curBm=JSON.parse(localStorage.getItem('jd_bm_'+name)||'[]');
-              var mergedBm=mergeBookmarks(name,curBm,remote.bm,remote.delBm);
+              var mergedBm=mergeBookmarks(name,curBm,remote.bm||[],remote.delBm||[]);
               localStorage.setItem('jd_bm_'+name,JSON.stringify(mergedBm));
             }catch(e){}
           }
-          if(remote.ant&&remote.ant.length){
+          if((remote.ant&&remote.ant.length)||(remote.delAnt&&remote.delAnt.length)){
             try{
               var curAnt=JSON.parse(localStorage.getItem('jd_ant_'+name)||'[]');
-              var mergedAnt=mergeAnnotations(name,curAnt,remote.ant,remote.delAnt);
+              var mergedAnt=mergeAnnotations(name,curAnt,remote.ant||[],remote.delAnt||[]);
               localStorage.setItem('jd_ant_'+name,JSON.stringify(mergedAnt));
             }catch(e){}
           }
-          if(remote.prog&&davRemoteAhead(localProg,remote.prog)){
-            confirmBox('检测到远端进度更靠前（第'+(remote.prog.ch+1)+'章 '+Math.round(remote.prog.pct||0)+'%），是否跳转？','跳转到远端进度',function(){
+          if((remote.hl&&remote.hl.length)||(remote.delHl&&remote.delHl.length)){
+            try{
+              var curHl=JSON.parse(localStorage.getItem('jd_hl_'+name)||'[]');
+              var mergedHl=mergeHlList(name,curHl,remote.hl||[],remote.delHl||[]);
+              localStorage.setItem('jd_hl_'+name,JSON.stringify(mergedHl));
+              if(S.fileName===name)_hlList=mergedHl;
+            }catch(e){}
+          }
+          if((remote.rep&&remote.rep.length)||(remote.delRep&&remote.delRep.length)){
+            try{
+              var curRep=JSON.parse(localStorage.getItem('jd_rep_'+name)||'[]');
+              var mergedRep=mergeRepRules(name,curRep,remote.rep||[],remote.delRep||[]);
+              localStorage.setItem('jd_rep_'+name,JSON.stringify(mergedRep));
+              if(S.fileName===name)_repList=mergedRep;
+            }catch(e){}
+          }
+          if(remote.prog){
+            if(!localProg){
               davApplyRemoteData(name,remote);
-              /* 跳转到远端进度位置（延迟等渲染稳定） */
-              setTimeout(function(){
-                var np=loadProg(name);
-                if(np){
-                  if(np.pct&&np.pct>0)jumpToPercent(np.pct);
-                  else if((np.ch||0)!==S.currentChapter)J.go(np.ch||0,np.offset||0);
-                }
-              },1200);
-            });
+            }else if(davRemoteAhead(localProg,remote.prog)){
+              confirmBox('检测到远端进度更靠前（第'+(remote.prog.ch+1)+'章 '+Math.round(remote.prog.pct||0)+'%），是否跳转？','跳转到远端进度',function(){
+                davApplyRemoteData(name,remote);
+                setTimeout(function(){
+                  var np=loadProg(name);
+                  if(np&&window.J){
+                    window.J.go(np.ch||0,Math.max(0,np.offset||0));
+                  }
+                },500);
+              });
+            }
           }
         }
         _loadBookContinue(name,data);
@@ -665,6 +702,8 @@ function deleteBook(name){
     try{localStorage.removeItem('jd_ant_'+name)}catch(e){console.warn('清除划线失败',e)}
     try{localStorage.removeItem('jd_del_bm_'+name)}catch(e){}
     try{localStorage.removeItem('jd_del_ant_'+name)}catch(e){}
+    try{localStorage.removeItem('jd_del_hl_'+name)}catch(e){}
+    try{localStorage.removeItem('jd_del_rep_'+name)}catch(e){}
     try{localStorage.removeItem('jd_hl_'+name)}catch(e){}
     try{localStorage.removeItem('jd_rep_'+name)}catch(e){}
     if(S.fileName===name){clearBookCache();S.fileName=''}
@@ -778,16 +817,90 @@ function mergeAnnotations(name,localList,remoteList,remoteDel){
   return merged;
 }
 
-/* 上传当前书的阅读进度、书签和批注到远端 */
+function mergeHlList(name,localList,remoteList,remoteDel){
+  var localDel=[];
+  try{localDel=JSON.parse(localStorage.getItem('jd_del_hl_'+name)||'[]')}catch(e){}
+  var allDel=(localDel||[]).concat(remoteDel||[]);
+  var delMap={};
+  for(var d=0;d<allDel.length;d++){
+    var item=allDel[d];
+    if(item&&item.w)delMap[item.w]=Math.max(delMap[item.w]||0,item.ts||0);
+  }
+  var merged=[],seen={};
+  var candidates=(localList||[]).concat(remoteList||[]);
+  for(var i=0;i<candidates.length;i++){
+    var c=candidates[i];
+    if(!c||!c.w)continue;
+    var w=c.w.trim();
+    if(!w)continue;
+    var delTime=delMap[w];
+    if(delTime&&delTime>=(c.ts||0))continue;
+    if(!seen[w]){
+      seen[w]=c;
+      merged.push(c);
+    }else{
+      var prev=seen[w];
+      if((c.ts||0)>(prev.ts||0)){
+        seen[w]=c;
+        for(var m=0;m<merged.length;m++){
+          if(merged[m].w===w){merged[m]=c;break}
+        }
+      }
+    }
+  }
+  try{localStorage.setItem('jd_del_hl_'+name,JSON.stringify(allDel.slice(-50)))}catch(e){}
+  return merged;
+}
+
+function mergeRepRules(name,localList,remoteList,remoteDel){
+  var localDel=[];
+  try{localDel=JSON.parse(localStorage.getItem('jd_del_rep_'+name)||'[]')}catch(e){}
+  var allDel=(localDel||[]).concat(remoteDel||[]);
+  var delMap={};
+  for(var d=0;d<allDel.length;d++){
+    var item=allDel[d];
+    if(item&&item.f)delMap[item.f]=Math.max(delMap[item.f]||0,item.ts||0);
+  }
+  var merged=[],seen={};
+  var candidates=(localList||[]).concat(remoteList||[]);
+  for(var i=0;i<candidates.length;i++){
+    var c=candidates[i];
+    if(!c||!c.f)continue;
+    var f=c.f;
+    var delTime=delMap[f];
+    if(delTime&&delTime>=(c.ts||0))continue;
+    if(!seen[f]){
+      seen[f]=c;
+      merged.push(c);
+    }else{
+      var prev=seen[f];
+      if((c.ts||0)>(prev.ts||0)){
+        seen[f]=c;
+        for(var m=0;m<merged.length;m++){
+          if(merged[m].f===f){merged[m]=c;break}
+        }
+      }
+    }
+  }
+  try{localStorage.setItem('jd_del_rep_'+name,JSON.stringify(allDel.slice(-50)))}catch(e){}
+  return merged;
+}
+
+/* 上传当前书的阅读进度、书签、批注、高亮词和替换规则到远端 */
 function davUploadCheckpoint(name,cb,opts){
   if(!davSyncAvailable()){if(cb)cb(false,'未连接');return}
   var prog=loadProg(name)||null;
   var bm=[],ant=[],delBm=[],delAnt=[];
+  var hl=[],rep=[],delHl=[],delRep=[];
   try{bm=JSON.parse(localStorage.getItem('jd_bm_'+name)||'[]')}catch(e){bm=[]}
   try{ant=JSON.parse(localStorage.getItem('jd_ant_'+name)||'[]')}catch(e){ant=[]}
   try{delBm=JSON.parse(localStorage.getItem('jd_del_bm_'+name)||'[]')}catch(e){delBm=[]}
   try{delAnt=JSON.parse(localStorage.getItem('jd_del_ant_'+name)||'[]')}catch(e){delAnt=[]}
-  var payload={v:2,ts:Date.now(),prog:prog,bm:bm,ant:ant,delBm:delBm,delAnt:delAnt};
+  try{hl=JSON.parse(localStorage.getItem('jd_hl_'+name)||'[]')}catch(e){hl=[]}
+  try{rep=JSON.parse(localStorage.getItem('jd_rep_'+name)||'[]')}catch(e){rep=[]}
+  try{delHl=JSON.parse(localStorage.getItem('jd_del_hl_'+name)||'[]')}catch(e){delHl=[]}
+  try{delRep=JSON.parse(localStorage.getItem('jd_del_rep_'+name)||'[]')}catch(e){delRep=[]}
+  var payload={v:2,ts:Date.now(),prog:prog,bm:bm,ant:ant,delBm:delBm,delAnt:delAnt,hl:hl,rep:rep,delHl:delHl,delRep:delRep};
   window.WebDAV.syncSaveBook(name,payload,opts).then(function(r){
     if(r&&r.ok)cb&&cb(true);
     else cb&&cb(false,'HTTP '+(r?r.status:'无响应'));
@@ -823,7 +936,7 @@ function davRemoteAhead(local,remote){
 
 /* 阅读中防抖静默同步与切后台/息屏保底保存 */
 var _syncDebounceTimer=null;
-function triggerReadingDebouncedSync(){
+function triggerReadingDebouncedSync(delayMs){
   if(!isCurrentBookWebdav()||!davSyncAvailable()||S.davSyncMode==='off')return;
   if(_syncDebounceTimer)clearTimeout(_syncDebounceTimer);
   _syncDebounceTimer=setTimeout(function(){
@@ -831,7 +944,19 @@ function triggerReadingDebouncedSync(){
       saveProg();
       davUploadCheckpoint(S.fileName);
     }
-  },15000);
+  },delayMs||5000);
+}
+
+/* 离散改动立即同步（批注、笔记、替换规则、高亮词、书签改动时） */
+function triggerImmediateSync(){
+  if(!isCurrentBookWebdav()||!davSyncAvailable()||S.davSyncMode==='off')return;
+  if(_syncDebounceTimer){clearTimeout(_syncDebounceTimer);_syncDebounceTimer=null}
+  if(S.fileName){
+    saveProg();
+    davUploadCheckpoint(S.fileName,function(ok,msg){
+      if(!ok)console.warn('立即同步未成功: '+(msg||''));
+    });
+  }
 }
 
 function handleBackgroundSync(){
@@ -881,7 +1006,7 @@ function processContent(){
   }
   _progData=null;
   if(!S.chapters||!S.chapters.length)S.chapters=[{title:'全文',content:S.rawText||'(空文件)',html:''}];
-  var sv=loadProg(S.fileName);var sc=sv?Math.min(sv.ch,S.chapters.length-1):0;var so=sv?sv.offset||0:0;
+  var sv=loadProg(S.fileName);var sc=sv?Math.min(sv.ch,S.chapters.length-1):0;var so=sv?Math.max(0,sv.offset||0):0;
   S.searchQuery='';S.searchResults=[];S.searchIdx=-1;
   renderBookmarks();showReader();initSeamless(sc,so);
 }
@@ -1090,7 +1215,7 @@ function scrollToChapter(chapter,offset){
   var bl=contentInner.querySelector('[data-idx="'+chapter+'"]');
   if(!bl)return;
   isAdjusting=true;
-  contentEl.scrollTop=getContentOffset(bl)+(offset||0);
+  contentEl.scrollTop=getContentOffset(bl)+Math.max(0,offset||0);
   requestAnimationFrame(function(){isAdjusting=false});
 }
 function scrollToElement(el,pad){
@@ -1113,7 +1238,7 @@ function initSeamless(chapter,offset,after){
       if(firstLoaded===-1)firstLoaded=i;lastLoaded=i;
     }
     function settle(){
-      scrollToChapter(chapter,offset||0);
+      scrollToChapter(chapter,Math.max(0,offset||0));
       updateProgress();highlightToc();updateBmBtn();updateStickyHead();
       checkInfinite();schedulePreload();
       if(S.fileType==='epub'){processFootnotes();setupEpubLinkHandler()}
@@ -1215,8 +1340,8 @@ function trimChapters(){
   firstLoaded=+rem[0].dataset.idx;lastLoaded=+rem[rem.length-1].dataset.idx;
   contentEl.scrollTop=Math.max(0,Math.min(contentEl.scrollHeight-contentEl.clientHeight,oT-(oH-contentEl.scrollHeight)));
 }
-function updateReadingChapter(){var bs=contentInner.querySelectorAll('.ch-block');var cr=contentEl.getBoundingClientRect();var threshold=cr.top+contentEl.clientHeight*.33;var c=S.currentChapter;for(var i=0;i<bs.length;i++){var rect=bs[i].getBoundingClientRect();if(rect.top>threshold)break;c=+bs[i].dataset.idx}if(c!==S.currentChapter){S.currentChapter=c;highlightToc();updateBmBtn();updateStickyHead();saveProg();triggerReadingDebouncedSync()}}
-var svTimer;function afterScroll(){if(isAdjusting)return;closeTip();hideSelToolbar();hideAntPop();updateReadingChapter();updateProgress();checkInfinite();updateBmBtn();clearTimeout(svTimer);svTimer=setTimeout(function(){saveProg();schedulePreload()},SAVE_DELAY)}
+function updateReadingChapter(){var bs=contentInner.querySelectorAll('.ch-block');var cr=contentEl.getBoundingClientRect();var threshold=cr.top+contentEl.clientHeight*.33;var c=S.currentChapter;for(var i=0;i<bs.length;i++){var rect=bs[i].getBoundingClientRect();if(rect.top>threshold)break;c=+bs[i].dataset.idx}if(c!==S.currentChapter){S.currentChapter=c;highlightToc();updateBmBtn();updateStickyHead();saveProg();triggerReadingDebouncedSync(5000)}}
+var svTimer;function afterScroll(){if(isAdjusting)return;closeTip();hideSelToolbar();hideAntPop();updateReadingChapter();updateProgress();checkInfinite();updateBmBtn();clearTimeout(svTimer);svTimer=setTimeout(function(){saveProg();schedulePreload();if(reader&&reader.classList.contains('active')&&S.fileName&&isCurrentBookWebdav()&&S.davSyncMode!=='off'&&davSyncAvailable()){triggerReadingDebouncedSync(10000)}},SAVE_DELAY)}
 
 /* ===== Progress ===== */
 function getProgressData(){
@@ -1477,7 +1602,7 @@ function createAnt(color){
   if(reader.classList.contains('active'))rerenderChapterBlock(range.ch);
   renderAnnotations();
   toast('已添加划线');
-  triggerReadingDebouncedSync();
+  triggerImmediateSync();
 }
 function clearSelection(){try{window.getSelection().removeAllRanges()}catch(e){}}
 
@@ -1550,7 +1675,7 @@ function saveAntNoteFromPop(){
   renderAnnotations();
   hideAntPop();
   toast('备注已保存');
-  triggerReadingDebouncedSync();
+  triggerImmediateSync();
 }
 function deleteAntFromPop(){
   if(_antPopIdx<0)return;
@@ -1569,7 +1694,7 @@ function deleteAntFromPop(){
   if(reader.classList.contains('active'))rerenderChapterBlock(S.currentChapter);
   renderAnnotations();
   toast('已删除划线');
-  triggerReadingDebouncedSync();
+  triggerImmediateSync();
 }
 
 /* ===== 侧栏笔记列表 ===== */
@@ -1792,9 +1917,9 @@ function toggleBookmark(){
     toast('已添加书签');
   }
   saveBookmarks(bms);renderBookmarks();updateBmBtn();
-  triggerReadingDebouncedSync();
+  triggerImmediateSync();
 }
-function getChapterOffset(){var bl=contentInner.querySelector('[data-idx="'+S.currentChapter+'"]');return bl?contentEl.scrollTop-getContentOffset(bl):0}
+function getChapterOffset(){var bl=contentInner.querySelector('[data-idx="'+S.currentChapter+'"]');return bl?Math.max(0,contentEl.scrollTop-getContentOffset(bl)):0}
 function deleteBookmark(i){
   var bms=getBookmarks();
   var b=bms[i];
@@ -1805,7 +1930,7 @@ function deleteBookmark(i){
     try{localStorage.setItem('jd_del_bm_'+S.fileName,JSON.stringify(delBms.slice(-50)))}catch(e){}
   }
   bms.splice(i,1);saveBookmarks(bms);renderBookmarks();updateBmBtn();toast('已删除书签');
-  triggerReadingDebouncedSync();
+  triggerImmediateSync();
 }
 function renderBookmarks(){var bms=getBookmarks();if(!bms.length){bmList.innerHTML='<div class="bm-empty">暂无书签<br><small>阅读时点击书签图标添加</small></div>';return}bmList.innerHTML=bms.map(function(b,i){var cn=S.chapters[b.ch]?S.chapters[b.ch].title:'未知章节';var dt=new Date(b.ts);var ds=(dt.getMonth()+1)+'/'+dt.getDate()+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0');var prog=b.progress!==undefined?'<span class="bm-prog">'+b.progress+'</span>':'';return '<div class="bm-item"><button type="button" class="bm-open" onclick="J.go('+b.ch+','+b.offset+')"><div class="bm-snippet">'+esc(b.snip||'')+'</div><div class="bm-meta"><span>'+cn+'</span><span>'+ds+'</span>'+prog+'</div></button><button type="button" class="bm-del" onclick="J.delBm('+i+')" title="删除" aria-label="删除书签"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>'}).join('')}
 function updateBmBtn(){var bms=getBookmarks();var on2=false;for(var i=0;i<bms.length;i++){if(bms[i].ch===S.currentChapter&&Math.abs(bms[i].offset-getChapterOffset())<BM_OFFSET_TOL){on2=true;break}}var btn=$('btn-bm');if(!btn)return;btn.classList.toggle('on',on2);var svg=btn.querySelector('svg');if(svg)svg.setAttribute('fill',on2?'currentColor':'none')}
@@ -2011,7 +2136,7 @@ function saveProg(){
   try{
     var a=JSON.parse(localStorage.getItem('jd_p')||'{}');
     var pct=0;try{pct=Math.round(getAccurateProgress()*100)}catch(e){}
-    var ch=S.currentChapter,offset=getChapterOffset();
+    var ch=S.currentChapter,offset=Math.max(0,getChapterOffset());
     a[S.fileName]={ch:ch,offset:offset,pct:pct,ts:Date.now()};
     localStorage.setItem('jd_p',JSON.stringify(a));
   }catch(e){}
@@ -2050,11 +2175,12 @@ function setupSettingsEvents(){
     var fv=f.value.trim(),tv=t.value;
     if(!fv){toast('请输入要查找的文本');f.focus();return}
     var rules=getRepRules();
-    rules.push({f:fv,t:tv,on:true});
+    rules.push({f:fv,t:tv,on:true,ts:Date.now()});
     saveRepRules(rules);
     f.value='';t.value='';
     renderRepList();updateRepSwitch();rerenderCurrent();
     toast('已添加替换规则');
+    triggerImmediateSync();
   });
   on($('rep-f'),'keydown',function(e){if(e.key==='Enter')$('rep-t').focus()});
   on($('rep-t'),'keydown',function(e){if(e.key==='Enter')$('rep-add-btn').click()});
@@ -2062,22 +2188,32 @@ function setupSettingsEvents(){
     var tg=e.target.closest('.rep-toggle');
     if(tg){
       var i=+tg.dataset.i;
-      var rules=getRepRules();rules[i].on=!rules[i].on;
+      var rules=getRepRules();rules[i].on=!rules[i].on;rules[i].ts=Date.now();
       saveRepRules(rules);renderRepList();updateRepSwitch();rerenderCurrent();
+      triggerImmediateSync();
       return;
     }
     var del=e.target.closest('.rep-del');
     if(del){
       var j=+del.dataset.i;
-      var r2=getRepRules();r2.splice(j,1);
+      var r2=getRepRules();
+      var removed=r2.splice(j,1)[0];
+      if(removed&&removed.f&&S.fileName){
+        var delRep=[];
+        try{delRep=JSON.parse(localStorage.getItem('jd_del_rep_'+S.fileName)||'[]')}catch(e){}
+        delRep.push({f:removed.f,ts:Date.now()});
+        try{localStorage.setItem('jd_del_rep_'+S.fileName,JSON.stringify(delRep.slice(-50)))}catch(e){}
+      }
       saveRepRules(r2);renderRepList();updateRepSwitch();rerenderCurrent();
+      triggerImmediateSync();
     }
   });
   on($('switch-rep'),'change',function(e){
     var on2=e.target.checked;
     var rules=getRepRules();
-    for(var i=0;i<rules.length;i++)rules[i].on=on2;
+    for(var i=0;i<rules.length;i++){rules[i].on=on2;rules[i].ts=Date.now()}
     saveRepRules(rules);renderRepList();rerenderCurrent();
+    triggerImmediateSync();
   });
   /* 高亮词 */
   initHlColors();
@@ -2086,19 +2222,28 @@ function setupSettingsEvents(){
     if(!v){toast('请输入要高亮的词');inp.focus();return}
     var ws=getHlList();
     for(var i=0;i<ws.length;i++){if(ws[i].w===v){toast('该词已存在');return}}
-    ws.push({w:v,c:selHlColor()});
+    ws.push({w:v,c:selHlColor(),ts:Date.now()});
     saveHlList(ws);
     inp.value='';
     renderHlList();rerenderCurrent();
     toast('已添加高亮词');
+    triggerImmediateSync();
   });
   on($('hl-input'),'keydown',function(e){if(e.key==='Enter')$('hl-add-btn').click()});
   on($('hl-list'),'click',function(e){
     var del=e.target.closest('.hl-del');
     if(!del)return;
     var i=+del.dataset.i;
-    var ws=getHlList();ws.splice(i,1);
+    var ws=getHlList();
+    var removed=ws.splice(i,1)[0];
+    if(removed&&removed.w&&S.fileName){
+      var delHl=[];
+      try{delHl=JSON.parse(localStorage.getItem('jd_del_hl_'+S.fileName)||'[]')}catch(e){}
+      delHl.push({w:removed.w,ts:Date.now()});
+      try{localStorage.setItem('jd_del_hl_'+S.fileName,JSON.stringify(delHl.slice(-50)))}catch(e){}
+    }
     saveHlList(ws);renderHlList();rerenderCurrent();
+    triggerImmediateSync();
   });
   /* 番茄钟时长 */
   on($('range-pomo'),'input',function(e){S.pomoMin=+e.target.value;saveSettings();var v=$('val-pomo');if(v)v.textContent=S.pomoMin+' 分钟'});
@@ -2335,7 +2480,7 @@ function handleHiddenShelfClick(){
   if(_hiddenShelfTaps>=5){_hiddenShelfTaps=0;toggleHiddenShelf();return}
   _hiddenShelfTapTimer=setTimeout(function(){_hiddenShelfTaps=0},650);
 }
-function togglePanel(n,force){if(n==='sidebar'){var o=force!==undefined?force:!sidebar.classList.contains('open');sidebar.classList.toggle('open',o);sidebarOverlay.classList.toggle('show',o);var sw=o?sidebar.offsetWidth+'px':'';toolbar.style.left=sw;searchBar.style.left=sw;if(o){highlightToc();renderAnnotations()}}else{var o2=force!==undefined?force:!settingsEl.classList.contains('open');settingsEl.classList.toggle('open',o2);settingsOverlay.classList.toggle('show',o2);if(o2){updateSettingsScope();updateStatsDisplay();updateCacheStats()}}}
+function togglePanel(n,force){if(n==='sidebar'){var o=force!==undefined?force:!sidebar.classList.contains('open');sidebar.classList.toggle('open',o);sidebarOverlay.classList.toggle('show',o);var sw=o?sidebar.offsetWidth+'px':'';toolbar.style.left=sw;searchBar.style.left=sw;if(o){highlightToc();renderAnnotations()}}else{var o2=force!==undefined?force:!settingsEl.classList.contains('open');settingsEl.classList.toggle('open',o2);settingsOverlay.classList.toggle('show',o2);if(o2){updateSettingsScope();updateStatsDisplay();updateCacheStats();renderRepList();renderHlList();updateRepSwitch()}}}
 /* 设置面板按上下文（阅读中 / 书架）显示对应分组；forceReader 显式指定上下文，避免依赖 reader 状态判断 */
 function updateSettingsScope(forceReader){
   var inReader=forceReader!==undefined?forceReader:!!(reader&&reader.classList.contains('active'));
@@ -2351,7 +2496,7 @@ function showBookshelfSettings(){settingsEl.classList.add('open');settingsOverla
 /* ===== Helpers ===== */
 function showLoading(m){if(loading){loading.classList.add('show');if(loadingText)loadingText.textContent=m||'加载中...'}}
 function hideLoading(){if(loading)loading.classList.remove('show')}
-function showReader(){hideBookshelf();buildTOC();if(reader)reader.classList.add('active');updateReaderTitle();var bm=$('btn-bm');if(bm){bm.classList.remove('on');var sv=bm.querySelector('svg');if(sv)sv.setAttribute('fill','none')}requestAnimationFrame(function(){hideLoading()});startReadingTimer()}
+function showReader(){hideBookshelf();buildTOC();if(reader)reader.classList.add('active');updateReaderTitle();var bm=$('btn-bm');if(bm){bm.classList.remove('on');var sv=bm.querySelector('svg');if(sv)sv.setAttribute('fill','none')}requestAnimationFrame(function(){hideLoading()});startReadingTimer();renderBookmarks();renderAnnotations();renderHlList();renderRepList();updateRepSwitch()}
 function fmtSize(b){return b<1024?b+'B':b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(1)+'MB'}
 function toast(msg){if(!toastEl)return;toastEl.textContent=msg;toastEl.classList.add('show');clearTimeout(toastEl._t);toastEl._t=setTimeout(function(){toastEl.classList.remove('show')},TOAST_MS)}
 /* ===== 确认弹框（替代原生 confirm，渐入渐出） ===== */
@@ -2388,7 +2533,7 @@ function debounce(fn,ms){var t;return function(){var a=arguments,c=this;clearTim
 function getStats(){try{return JSON.parse(localStorage.getItem('jd_stats')||'{"totalMin":0,"todayMin":0,"date":"","monthMin":0,"month":"","sessions":0,"books":{}}')}catch(e){return{totalMin:0,todayMin:0,date:'',monthMin:0,month:'',sessions:0,books:{}}}}
 function saveStats(s){try{localStorage.setItem('jd_stats',JSON.stringify(s))}catch(e){}}
 function updateStatsDisplay(){var s=getStats(),b=s.books[S.fileName],ym=new Date().toISOString().slice(0,7);if(s.month!==ym)s.monthMin=0;var m=$('stats-month'),t=$('stats-total'),d=$('stats-today'),bk=$('stats-book');if(m)m.textContent=s.monthMin+' 分钟';if(t)t.textContent=s.totalMin+' 分钟';if(d)d.textContent=s.todayMin+' 分钟';if(bk)bk.textContent=(b?b.min:0)+' 分钟'}
-function tickReading(){if(!_rs)return;var now=Date.now(),elapsed=Math.floor((now-_rs)/60000);if(elapsed<1)return;var s=getStats(),today=new Date().toISOString().slice(0,10),ym=today.slice(0,7);if(s.date!==today){s.todayMin=0;s.date=today}if(s.month!==ym){s.monthMin=0;s.month=ym}s.totalMin+=elapsed;s.todayMin+=elapsed;s.monthMin+=elapsed;if(S.fileName){if(!s.books[S.fileName])s.books[S.fileName]={min:0,opens:0};s.books[S.fileName].min+=elapsed}saveStats(s);_rs=now;updateStatsDisplay()}
+function tickReading(){if(!_rs)return;var now=Date.now(),elapsed=Math.floor((now-_rs)/60000);if(elapsed<1)return;var s=getStats(),today=new Date().toISOString().slice(0,10),ym=today.slice(0,7);if(s.date!==today){s.todayMin=0;s.date=today}if(s.month!==ym){s.monthMin=0;s.month=ym}s.totalMin+=elapsed;s.todayMin+=elapsed;s.monthMin+=elapsed;if(S.fileName){if(!s.books[S.fileName])s.books[S.fileName]={min:0,opens:0};s.books[S.fileName].min+=elapsed;if(reader&&reader.classList.contains('active')&&isCurrentBookWebdav()&&S.davSyncMode!=='off'&&davSyncAvailable()){saveProg();davUploadCheckpoint(S.fileName)}}saveStats(s);_rs=now;updateStatsDisplay()}
 function updateToolbarTime(){}
 function startReadingTimer(){stopReadingTimer();_rs=Date.now();_rt=setInterval(tickReading,60000);_rtSec=setInterval(updateToolbarTime,10000);var s=getStats();s.sessions++;saveStats(s);updateStatsDisplay();updateToolbarTime()}
 function stopReadingTimer(){if(_rt){clearInterval(_rt);_rt=null}if(_rtSec){clearInterval(_rtSec);_rtSec=null}tickReading();_rs=0;updateToolbarTime()}
@@ -2538,11 +2683,20 @@ window.J={
     });
   },
   delAnt:function(i){
-    var ants=getAnnotations();ants.splice(i,1);
+    var ants=getAnnotations();
+    var a=ants[i];
+    if(a&&S.fileName){
+      var delAnts=[];
+      try{delAnts=JSON.parse(localStorage.getItem('jd_del_ant_'+S.fileName)||'[]')}catch(e){}
+      delAnts.push({sig:getAntSig(a),ts:Date.now()});
+      try{localStorage.setItem('jd_del_ant_'+S.fileName,JSON.stringify(delAnts.slice(-50)))}catch(e){}
+    }
+    ants.splice(i,1);
     saveAnnotations(ants);
     renderAnnotations();
     if(reader.classList.contains('active'))rerenderChapterBlock(S.currentChapter);
     toast('已删除划线');
+    triggerImmediateSync();
   },
   goToHeading:function(chIdx,hIdx){
     goToChapter(chIdx,function(){
@@ -2566,5 +2720,7 @@ window.renderBookmarks=renderBookmarks;window.rerenderCurrent=rerenderCurrent;
 window.getHlList=getHlList;window.getRepRules=getRepRules;window.renderHlList=renderHlList;window.renderRepList=renderRepList;window.renderCatList=renderCatList;
 window.confirmBox=confirmBox;
 window.mergeBookmarks=mergeBookmarks;window.mergeAnnotations=mergeAnnotations;window.isCurrentBookWebdav=isCurrentBookWebdav;
+window.mergeHlList=mergeHlList;window.mergeRepRules=mergeRepRules;
+window.clearBookCache=clearBookCache;window.renderAnnotations=renderAnnotations;window.updateRepSwitch=updateRepSwitch;
 
 })();

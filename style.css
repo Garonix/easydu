@@ -62,6 +62,8 @@ input,textarea,button,select{-webkit-user-select:auto;user-select:auto}
 .bs-card-meta{font-size:.68rem;color:var(--text-sec)}
 .bs-card-tags{margin-top:5px;display:flex;flex-wrap:wrap;gap:4px}
 .bs-card-badge{display:inline-block;font-size:.66rem;padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bs-card-dav{display:inline-flex;align-items:center;font-size:.66rem;padding:1px 5px;border-radius:4px;background:rgba(52,152,219,.12);color:#2980b9;border:1px solid rgba(52,152,219,.25);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+[data-theme="dark"] .bs-card-dav{background:rgba(52,152,219,.22);color:#5dade2;border-color:rgba(52,152,219,.4)}
 .bs-card-del,.bs-card-download{position:absolute;top:6px;width:24px;height:24px;border:none;border-radius:6px;background:rgba(0,0,0,.4);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
 .bs-card-del{right:6px}
 .bs-card-download{right:36px}
