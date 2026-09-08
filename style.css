@@ -78,7 +78,7 @@ input,textarea,button,select{-webkit-user-select:auto;user-select:auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ===== Reader ===== */
-#reader{position:fixed;inset:0;display:none;flex-direction:column;z-index:15;background:var(--bg)}
+#reader{position:fixed;inset:0;display:none;flex-direction:column;z-index:15;background:var(--reader-bg,var(--bg))}
 #reader.active{display:flex}
 #toolbar{position:absolute;top:0;left:0;right:0;height:54px;z-index:100;display:flex;align-items:center;padding:0 12px;gap:4px;background:var(--toolbar-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);transform:translateY(-100%);opacity:0;transition:transform .3s,opacity .3s,left .3s cubic-bezier(.4,0,.2,1)}
 #toolbar.visible{transform:translateY(0);opacity:1}
@@ -87,7 +87,7 @@ input,textarea,button,select{-webkit-user-select:auto;user-select:auto}
 .tb-btn.on{color:var(--accent)}
 /* tb-title 已 absolute 脱离 flex 流，右侧按钮组失去 flex:1 推力；给组内第一个按钮加 margin-left:auto，把剩余空间推到组前，实现整体右对齐贴边 */
 #btn-home{margin-left:auto}
-.tb-title{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:calc(100% - 260px);text-align:center;font-size:.85rem;color:var(--text-sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
+.tb-title{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:min(44vw,240px);text-align:center;font-size:.85rem;color:var(--text-sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;pointer-events:none}
 #search-bar{position:absolute;top:54px;left:0;right:0;z-index:99;background:var(--toolbar-bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:10px 16px;transform:translateY(-100%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s,top .3s,left .3s cubic-bezier(.4,0,.2,1);overflow:hidden}
 #search-bar.open{transform:translateY(0);opacity:1;pointer-events:auto}
 .search-row{display:flex;align-items:center;gap:4px;width:100%}
@@ -134,8 +134,9 @@ input,textarea,button,select{-webkit-user-select:auto;user-select:auto}
 #settings.open{transform:translateX(0)}
 .settings-title{font-size:1rem;font-weight:700;margin-bottom:24px}
 .settings-group{margin-bottom:24px}
-.settings-label{font-size:.82rem;color:var(--text-sec);margin-bottom:10px;display:flex;justify-content:space-between}
+.settings-label{font-size:.82rem;color:var(--text-sec);margin-bottom:0;display:flex;justify-content:space-between;align-items:center}
 .settings-label span{color:var(--text);font-weight:700}
+.settings-group>input[type=range],.settings-group>.settings-row,.settings-group>.cat-add{margin-top:8px}
 .settings-row{display:flex;gap:8px}
 .settings-row button{flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);cursor:pointer;font-family:inherit;font-size:.85rem;transition:all .2s}
 .settings-row button:hover,.settings-row button.active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
@@ -175,7 +176,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 /* Force project font settings on body text elements */
 #content-inner .ch-body[data-epub] p,
 #content-inner .ch-body[data-epub] div,
-#content-inner .ch-body[data-epub] span,
+#content-inner .ch-body[data-epub] span:not(.ant),
 #content-inner .ch-body[data-epub] li,
 #content-inner .ch-body[data-epub] td,
 #content-inner .ch-body[data-epub] th,
@@ -372,8 +373,22 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 #btn-pomo.running:hover{background:#c23a3a}
 #btn-pomo.pulse{animation:pomoPulse 1s ease infinite}
 @keyframes pomoPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+#pomo-pop{position:fixed;z-index:200;display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px 10px;animation:pomoPopIn .15s ease-out}
+#pomo-pop.show{display:flex}
+@keyframes pomoPopIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+#pomo-pop input{width:54px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font:inherit;font-size:.85rem;font-weight:600;text-align:center;padding:0 4px}
+.pomo-pop-unit{font-size:.8rem;color:var(--text-sec);white-space:nowrap}
+.pomo-pop-ok{height:28px;padding:0 12px;border:none;border-radius:6px;background:var(--accent);color:#fff;font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity .15s}
+.pomo-pop-ok:hover{opacity:.9}
 
 /* ===== 划线 ===== */
+#content-inner .ant,
+#content-inner .ant *,
+#content-inner .ch-body[data-epub] span.ant,
+#content-inner .ch-body[data-epub] .ant,
+#content-inner .ch-body[data-epub] .ant *,
+.ant,
+.ant *{color:#fff!important;-webkit-text-fill-color:#fff!important}
 .ant{cursor:pointer;border-radius:2px;transition:filter .15s}
 #sel-toolbar{position:fixed;z-index:300;display:none;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:6px 8px;max-width:min(340px,calc(100vw - 20px));box-sizing:border-box}
 #sel-toolbar.show{display:flex}

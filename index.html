@@ -86,6 +86,12 @@
     <button class="tb-btn" id="btn-settings" title="设置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </header>
 
+  <div id="pomo-pop" class="pomo-pop">
+    <input type="number" id="pomo-input" min="1" max="180" step="1" value="25">
+    <span class="pomo-pop-unit">分钟</span>
+    <button type="button" id="pomo-pop-ok" class="pomo-pop-ok">确定</button>
+  </div>
+
   <div id="search-bar"><div class="search-row">
     <input type="text" id="search-input" placeholder="搜索全文内容...">
     <span id="search-count"></span>
@@ -115,12 +121,17 @@
   <div class="settings-group" data-scope="reader"><div class="settings-label">边距</div><div class="settings-row"><button data-pad="narrow">窄</button><button data-pad="normal" class="active">标准</button><button data-pad="wide">宽</button></div></div>
   <div class="settings-group" data-scope="reader"><div class="settings-label">正文字色</div><div class="settings-row color-row">
     <button type="button" class="color-swatch active" data-color="" title="默认" style="background:var(--text)"></button>
-    <button type="button" class="color-swatch" data-color="#3a3028" title="深褐" style="background:#3a3028"></button>
     <button type="button" class="color-swatch" data-color="#1a1a1a" title="纯黑" style="background:#1a1a1a"></button>
+    <button type="button" class="color-swatch" data-color="#3a3028" title="深褐" style="background:#3a3028"></button>
     <button type="button" class="color-swatch" data-color="#2c3e50" title="墨蓝" style="background:#2c3e50"></button>
-    <button type="button" class="color-swatch" data-color="#3d4f3d" title="墨绿" style="background:#3d4f3d"></button>
-    <button type="button" class="color-swatch" data-color="#5c4a3a" title="咖啡" style="background:#5c4a3a"></button>
     <button type="button" class="color-swatch" data-color="#dcd6cc" title="浅灰" style="background:#dcd6cc"></button>
+  </div></div>
+  <div class="settings-group" data-scope="reader"><div class="settings-label">背景色</div><div class="settings-row color-row">
+    <button type="button" class="color-swatch active" data-bg="" title="默认" style="background:var(--bg)"></button>
+    <button type="button" class="color-swatch" data-bg="#f4ecd8" title="羊皮纸" style="background:#f4ecd8"></button>
+    <button type="button" class="color-swatch" data-bg="#e8f2e6" title="护眼绿" style="background:#e8f2e6"></button>
+    <button type="button" class="color-swatch" data-bg="#e9ebec" title="水墨灰" style="background:#e9ebec"></button>
+    <button type="button" class="color-swatch" data-bg="#1a1a1e" title="极夜黑" style="background:#1a1a1e"></button>
   </div></div>
   <div class="settings-group" data-scope="reader"><div class="settings-label">繁转简<label class="switch" title="将繁体内容转为简体显示"><input type="checkbox" id="switch-conv"><span class="slider"></span></label></div></div>
   <div class="settings-group cat-group" data-scope="shelf">
@@ -187,32 +198,8 @@
     </div>
   </details>
   <div class="settings-group" data-scope="reader">
-    <div class="settings-label">番茄钟时长<span id="val-pomo">25 分钟</span></div>
-    <input type="range" id="range-pomo" min="10" max="60" step="5" value="25">
-  </div>
-  <div class="settings-group" data-scope="reader">
     <div class="settings-label">常驻章节标题<label class="switch" title="阅读区顶部常驻显示当前章节标题"><input type="checkbox" id="switch-sticky"><span class="slider"></span></label></div>
   </div>
-  <details class="settings-group fold" data-scope="reader" id="trans-settings-fold">
-    <summary class="settings-label">
-      <span>划词翻译</span>
-      <label class="switch" title="阅读时划选文字开启翻译（当前浏览器会话保持）" style="position:relative">
-        <input type="checkbox" id="switch-trans">
-        <span class="slider"></span>
-      </label>
-    </summary>
-    <div class="fold-body">
-      <div style="font-size:.74rem;color:var(--text-sec);margin-bottom:8px">小开关默认关闭，在选区工具条点击“译”或开启此开关后，当前浏览器会话期间持续生效。</div>
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:.8rem;color:var(--text-sec)">翻译引擎</span>
-        <select id="select-trans-engine" style="height:28px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font:inherit;padding:0 6px;font-size:.78rem">
-          <option value="auto">智能双引擎（Google + 有道）</option>
-          <option value="google">Google 翻译（长句优先）</option>
-          <option value="youdao">有道词典（字词优先，国内直连）</option>
-        </select>
-      </div>
-    </div>
-  </details>
   <div class="settings-group stats-group" data-scope="reader">
     <div class="settings-label">阅读统计</div>
     <div class="stats-row"><span>本月</span><span id="stats-month">0 分钟</span></div>
