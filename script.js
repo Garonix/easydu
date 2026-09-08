@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var S={fileName:'',fileSize:0,fileType:'',rawText:'',chapters:[],currentChapter:0,epubCSS:'',epubTitle:'',toc:null,theme:'light',fontSize:18,lineHeight:1.85,padding:'normal',textColor:'',searchQuery:'',searchResults:[],searchIdx:-1,hiddenShelf:false,librarySort:'recent',storeMode:'inline',convSimp:false,stickyHead:true,pomoMin:25,libraryCat:'__all__',davSyncMode:'auto',transEnabled:true,transEngine:'auto',transMode:'auto'};
+var S={fileName:'',fileSize:0,fileType:'',rawText:'',chapters:[],currentChapter:0,epubCSS:'',epubTitle:'',toc:null,theme:'light',fontSize:18,lineHeight:1.85,padding:'normal',textColor:'',searchQuery:'',searchResults:[],searchIdx:-1,hiddenShelf:false,librarySort:'recent',storeMode:'inline',convSimp:false,stickyHead:true,pomoMin:25,libraryCat:'__all__',davSyncMode:'auto',transEnabled:false,transEngine:'auto'};
 var _searchToken=0,_tocItems=[],_tocScrollBound=false,_tocItemH=40;
 var $=function(id){return document.getElementById(id)};
 var bookshelf=$('bookshelf'),loading=$('loading'),loadingText=$('loading-text');
@@ -24,7 +24,7 @@ var _pomo=null,_pomoTimer=null;
 var _antPopIdx=-1,_catTarget=null,_selCache=null;
 var POMO_COLORS=['#e05a4e','#d98a1f','#2f9e44','#1d7fd4','#8a5ac1','#c2577a'];
 var POMO_ICON='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>';
-var _selToolbar=null,_stColors=null,_antPop=null,_catPop=null,_catPopList=null,_transCache=null,_lastTransText='',_lastTransResult=null;
+var _selToolbar=null,_stColors=null,_antPop=null,_catPop=null,_catPopList=null,_transCache=null,_lastTransText='',_lastTransResult=null,_transSessionActive=false;
 var CH_HEADING_GAP=10,BM_OFFSET_TOL=200,SCROLL_BOUND=800,PARA_MAX=4000,SAVE_DELAY=800,PROC_DELAY=30,TOAST_MS=1800,SEARCH_DELAY=200,SNIP_MAX=100,TRIM_WIN=4;
 /* ===== 外部模块桥接（webdav.js / epub.js 提供实现，延迟到运行时解析） ===== */
 var parseEPUB=function(buf,cb){var m=window.EPUB;return m?m.parseEPUB(buf,cb):cb(null,'EPUB 解析器未加载')};
@@ -306,8 +306,8 @@ function generateCoverDataUrl(name){
 }
 
 /* ===== Settings ===== */
-function loadSettings(){try{var d=JSON.parse(localStorage.getItem('jd_s'));if(d){S.theme=d.theme||'light';S.fontSize=d.fs||18;S.lineHeight=d.lh||1.85;S.padding=d.pad||'normal';S.textColor=d.tc||'';S.librarySort=d.bsSort||'recent';S.convSimp=d.convSimp===true;S.stickyHead=d.stickyHead!==false;S.pomoMin=d.pomoMin||25;S.libraryCat=d.bsCat||'__all__';S.davSyncMode=d.davSyncMode||'auto';S.transEnabled=d.transEnabled!==false;S.transEngine=d.transEngine||'auto';S.transMode=d.transMode||'auto'}}catch(e){}}
-function saveSettings(){try{localStorage.setItem('jd_s',JSON.stringify({theme:S.theme,fs:S.fontSize,lh:S.lineHeight,pad:S.padding,tc:S.textColor||'',bsSort:S.librarySort,convSimp:S.convSimp,stickyHead:S.stickyHead,pomoMin:S.pomoMin,bsCat:S.libraryCat,davSyncMode:S.davSyncMode||'auto',transEnabled:S.transEnabled,transEngine:S.transEngine,transMode:S.transMode}))}catch(e){}}
+function loadSettings(){try{var d=JSON.parse(localStorage.getItem('jd_s'));if(d){S.theme=d.theme||'light';S.fontSize=d.fs||18;S.lineHeight=d.lh||1.85;S.padding=d.pad||'normal';S.textColor=d.tc||'';S.librarySort=d.bsSort||'recent';S.convSimp=d.convSimp===true;S.stickyHead=d.stickyHead!==false;S.pomoMin=d.pomoMin||25;S.libraryCat=d.bsCat||'__all__';S.davSyncMode=d.davSyncMode||'auto';S.transEngine=d.transEngine||'auto'}}catch(e){}S.transEnabled=isTransActive();}
+function saveSettings(){try{localStorage.setItem('jd_s',JSON.stringify({theme:S.theme,fs:S.fontSize,lh:S.lineHeight,pad:S.padding,tc:S.textColor||'',bsSort:S.librarySort,convSimp:S.convSimp,stickyHead:S.stickyHead,pomoMin:S.pomoMin,bsCat:S.libraryCat,davSyncMode:S.davSyncMode||'auto',transEngine:S.transEngine}))}catch(e){}}
 function loadHiddenShelf(){
   S.hiddenShelf=false;
   try{localStorage.removeItem('jd_hidden_shelf');localStorage.removeItem('jd_privacy')}catch(e){}
@@ -364,9 +364,8 @@ function applySettings(){
   var rp=$('range-pomo'),vp=$('val-pomo');if(rp)rp.value=S.pomoMin;if(vp)vp.textContent=S.pomoMin+' 分钟';
   var ss=$('switch-sticky');if(ss)ss.checked=!!S.stickyHead;
   var selSync=$('select-dav-sync');if(selSync)selSync.value=S.davSyncMode||'auto';
-  var swTr=$('switch-trans');if(swTr)swTr.checked=!!S.transEnabled;
+  var swTr=$('switch-trans');if(swTr)swTr.checked=isTransActive();
   var seTr=$('select-trans-engine');if(seTr)seTr.value=S.transEngine||'auto';
-  var smTr=$('select-trans-mode');if(smTr)smTr.value=S.transMode||'auto';
   updateRepSwitch();
   updateTransUI();
 }
@@ -1761,13 +1760,28 @@ function playTTS(text,lang){
     window.speechSynthesis.speak(u);
   }catch(e){toast('语音朗读失败')}
 }
+function isTransActive(){
+  try{
+    var v=sessionStorage.getItem('jd_trans_active');
+    if(v!==null)return v==='1';
+  }catch(e){}
+  return _transSessionActive;
+}
+function setTransActive(on){
+  _transSessionActive=!!on;
+  try{
+    sessionStorage.setItem('jd_trans_active',on?'1':'0');
+  }catch(e){}
+  S.transEnabled=!!on;
+  updateTransUI();
+}
 function updateTransUI(){
-  var sep=$('st-trans-sep'),btn=$('st-trans-btn');
-  if(sep)sep.style.display=S.transEnabled?'':'none';
-  if(btn)btn.style.display=S.transEnabled?'inline-flex':'none';
-  if(!S.transEnabled&&_selToolbar){
-    _selToolbar.classList.remove('show-trans');
-    if(btn)btn.classList.remove('active');
+  var on=isTransActive();
+  var sw=$('switch-trans');if(sw)sw.checked=on;
+  var btn=$('st-trans-btn');
+  if(btn){
+    btn.classList.toggle('active',on);
+    btn.setAttribute('title',on?'划词翻译已开启（点击关闭）':'开启划词翻译');
   }
 }
 function repositionSelToolbar(selR){
@@ -1834,14 +1848,17 @@ function initSelToolbar(){
     if(b)createAnt(b.dataset.c);
   });
   on($('st-trans-btn'),'click',function(){
-    if(_selToolbar.classList.contains('show-trans')){
-      _selToolbar.classList.remove('show-trans');
-      $('st-trans-btn').classList.remove('active');
-      repositionSelToolbar();
-    }else{
+    var nowActive=!isTransActive();
+    setTransActive(nowActive);
+    if(nowActive){
       _selToolbar.classList.add('show-trans');
-      $('st-trans-btn').classList.add('active');
       triggerTrans();
+      repositionSelToolbar();
+      toast('已开启划词翻译（当前会话有效）');
+    }else{
+      _selToolbar.classList.remove('show-trans');
+      repositionSelToolbar();
+      toast('已关闭划词翻译');
     }
   });
   on($('st-trans-tts'),'click',function(){
@@ -1878,15 +1895,15 @@ function showSelToolbar(){
 
   var selTxt=textFromRange(range.body,range.start,range.end).trim();
   _lastTransResult=null;_lastTransText=selTxt;
-  var willAutoTrans=S.transEnabled&&S.transMode==='auto'&&selTxt.length<=300;
+  var active=isTransActive()&&selTxt.length<=300;
 
-  if(willAutoTrans){
+  updateTransUI();
+
+  if(active){
     _selToolbar.classList.add('show-trans');
-    if($('st-trans-btn'))$('st-trans-btn').classList.add('active');
     triggerTrans();
   }else{
     _selToolbar.classList.remove('show-trans');
-    if($('st-trans-btn'))$('st-trans-btn').classList.remove('active');
   }
   repositionSelToolbar(selR);
 }
@@ -1894,7 +1911,7 @@ function hideSelToolbar(){
   if(_selToolbar){
     _selToolbar.classList.remove('show');
     _selToolbar.classList.remove('show-trans');
-    if($('st-trans-btn'))$('st-trans-btn').classList.remove('active');
+    updateTransUI();
   }
 }
 
@@ -2512,20 +2529,19 @@ function setupSettingsEvents(){
   on($('switch-sticky'),'change',function(e){S.stickyHead=e.target.checked;applySettings();saveSettings()});
   /* 划词翻译设置 */
   on($('switch-trans'),'change',function(e){
-    S.transEnabled=e.target.checked;
-    applySettings();
-    saveSettings();
-    toast(S.transEnabled?'已开启划词翻译':'已关闭划词翻译');
+    var on=e.target.checked;
+    setTransActive(on);
+    if(!on&&_selToolbar){
+      _selToolbar.classList.remove('show-trans');
+      repositionSelToolbar();
+    }
+    toast(on?'已开启划词翻译（当前会话有效）':'已关闭划词翻译');
   });
   var swTransWrap=$('switch-trans')?$('switch-trans').closest('.switch'):null;
   if(swTransWrap)on(swTransWrap,'click',function(e){e.stopPropagation()});
   var selTransEng=$('select-trans-engine');
   if(selTransEng){
     on(selTransEng,'change',function(){S.transEngine=selTransEng.value;saveSettings()});
-  }
-  var selTransMode=$('select-trans-mode');
-  if(selTransMode){
-    on(selTransMode,'change',function(){S.transMode=selTransMode.value;saveSettings()});
   }
   /* WebDAV 关书同步策略 */
   var selSync=$('select-dav-sync');
