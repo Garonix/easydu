@@ -310,16 +310,25 @@ function handleSaveAndTest(){
 function checkWriteAndPersist(origin,path,user,pass,auth){
   var easyduPath=origin.replace(/\/$/,'')+'/'+path.replace(/^\//,'').replace(/\/$/,'')+'/.easydu';
   var testFilePath=easyduPath+'/.test_rw';
-  var mkHeaders=auth?{'Authorization':auth}:{};
-  /* 先尝试创建 .easydu 目录（已存在则返回 405，忽略） */
-  fetch(easyduPath,{method:'MKCOL',headers:mkHeaders}).catch(function(){}).then(function(){
-    var putHeaders=Object.assign({'Content-Type':'application/json'},auth?{'Authorization':auth}:{});
+  var authHeaders=auth?{'Authorization':auth}:{};
+  var putHeaders=Object.assign({'Content-Type':'application/json'},authHeaders);
+  var doPut=function(){
     return fetch(testFilePath,{method:'PUT',headers:putHeaders,body:JSON.stringify({test:Date.now()})});
+  };
+  /* 乐观写入：目录存在时直接写入；若返回 409/404（父目录不存在）才补发 MKCOL 并重试 */
+  doPut().then(function(putResp){
+    if(putResp&&(putResp.status===409||putResp.status===404)){
+      return fetch(easyduPath,{method:'MKCOL',headers:authHeaders}).catch(function(){}).then(function(){
+        return doPut();
+      });
+    }
+    return putResp;
   }).then(function(putResp){
     var writeOk=(putResp&&putResp.ok);
     if(writeOk){
+      _davDirEnsured=true;
       /* 清理测试文件 */
-      fetch(testFilePath,{method:'DELETE',headers:mkHeaders}).catch(function(){});
+      fetch(testFilePath,{method:'DELETE',headers:authHeaders}).catch(function(){});
     }
     /* 保存凭据 */
     var saveUrl=(webdavCfgUrl?webdavCfgUrl.value.trim():'')||origin+path;
@@ -676,9 +685,22 @@ function davSyncEnsureDir(){
   if(_davDirEnsured)return Promise.resolve();
   return webdavFetch(davSyncBasePath(),{method:'MKCOL'}).then(function(r){
     if(r.ok||r.status===405||r.status===409)_davDirEnsured=true;
-  }).catch(function(){});
+    return r;
+  }).catch(function(e){return{ok:false,status:0,error:e}});
 }
-function davSyncSaveBook(name,payload,opts){return davSyncEnsureDir().then(function(){return davSyncPut(davSyncBookPath(name),payload,opts)})}
+function davSyncSaveBook(name,payload,opts){
+  var path=davSyncBookPath(name);
+  /* 乐观 PUT：日常同步直接 PUT 写入配置；若遇 409/404（父目录未建）才补发 MKCOL 并重试，避免每次会话产生 MKCOL 405 红字 */
+  return davSyncPut(path,payload,opts).then(function(resp){
+    if(resp&&(resp.status===409||resp.status===404)&&!_davDirEnsured){
+      return davSyncEnsureDir().then(function(){
+        return davSyncPut(path,payload,opts);
+      });
+    }
+    if(resp&&resp.ok)_davDirEnsured=true;
+    return resp;
+  });
+}
 function davSyncLoadBook(name){return davSyncGet(davSyncBookPath(name))}
 function davSyncDeleteBook(name){return davSyncDelete(davSyncBookPath(name))}
 
