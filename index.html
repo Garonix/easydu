@@ -193,6 +193,32 @@
   <div class="settings-group" data-scope="reader">
     <div class="settings-label">常驻章节标题<label class="switch" title="阅读区顶部常驻显示当前章节标题"><input type="checkbox" id="switch-sticky"><span class="slider"></span></label></div>
   </div>
+  <details class="settings-group fold" data-scope="reader" id="trans-settings-fold">
+    <summary class="settings-label">
+      <span>划词翻译</span>
+      <label class="switch" title="阅读时划选文字自动或按需翻译" style="position:relative">
+        <input type="checkbox" id="switch-trans">
+        <span class="slider"></span>
+      </label>
+    </summary>
+    <div class="fold-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:.8rem;color:var(--text-sec)">翻译引擎</span>
+        <select id="select-trans-engine" style="height:28px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font:inherit;padding:0 6px;font-size:.78rem">
+          <option value="auto">智能双引擎（Google + 有道）</option>
+          <option value="google">Google 翻译（长句优先）</option>
+          <option value="youdao">有道词典（字词优先，国内直连）</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:.8rem;color:var(--text-sec)">触发方式</span>
+        <select id="select-trans-mode" style="height:28px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font:inherit;padding:0 6px;font-size:.78rem">
+          <option value="auto">划选即译（自动弹出）</option>
+          <option value="click">按需翻译（点击“译”展开）</option>
+        </select>
+      </div>
+    </div>
+  </details>
   <div class="settings-group stats-group" data-scope="reader">
     <div class="settings-label">阅读统计</div>
     <div class="stats-row"><span>本月</span><span id="stats-month">0 分钟</span></div>
@@ -204,10 +230,43 @@
 
 <div id="toast"></div>
 
-<!-- 选区浮动工具条：划线 -->
+<!-- 选区浮动工具条：划线与划词翻译 -->
 <div id="sel-toolbar" aria-hidden="true">
-  <div class="st-colors" id="st-colors"></div>
-  <button type="button" class="st-close" id="st-close" title="取消"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <div class="st-bar">
+    <div class="st-colors" id="st-colors"></div>
+    <div class="st-sep" id="st-trans-sep"></div>
+    <button type="button" class="st-btn" id="st-trans-btn" title="划词翻译" aria-label="划词翻译">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+      <span>译</span>
+    </button>
+    <button type="button" class="st-close" id="st-close" title="取消"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="st-trans-panel" id="st-trans-panel">
+    <div class="st-trans-head">
+      <div class="st-trans-meta">
+        <span class="st-trans-tag" id="st-trans-tag">翻译</span>
+        <span class="st-trans-orig" id="st-trans-orig"></span>
+      </div>
+      <div class="st-trans-tools">
+        <button type="button" class="st-trans-tool-btn" id="st-trans-tts" title="朗读发音" aria-label="朗读发音">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="st-trans-body" id="st-trans-body">
+      <div class="st-trans-loading">正在翻译...</div>
+    </div>
+    <div class="st-trans-actions" id="st-trans-actions">
+      <button type="button" class="st-trans-act" id="st-trans-copy">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span>复制</span>
+      </button>
+      <button type="button" class="st-trans-act primary" id="st-trans-note">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <span>记为笔记</span>
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- 划线操作弹窗 -->

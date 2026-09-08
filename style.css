@@ -375,14 +375,39 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 
 /* ===== 划线 ===== */
 .ant{cursor:pointer;border-radius:2px;transition:filter .15s}
-.ant:hover{filter:brightness(1.12)}
-#sel-toolbar{position:fixed;z-index:300;display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:6px 8px}
+#sel-toolbar{position:fixed;z-index:300;display:none;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:6px 8px;max-width:min(340px,calc(100vw - 20px));box-sizing:border-box}
 #sel-toolbar.show{display:flex}
+.st-bar{display:flex;align-items:center;gap:6px}
 .st-colors{display:flex;gap:6px;align-items:center}
 .st-color{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:transform .15s}
 .st-color:hover{transform:scale(1.15)}
-.st-close{width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:var(--text-sec);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.st-sep{width:1px;height:16px;background:var(--border);margin:0 2px;flex-shrink:0}
+.st-btn{height:24px;padding:0 6px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--text-sec);cursor:pointer;display:inline-flex;align-items:center;gap:3px;font:inherit;font-size:.76rem;font-weight:600;flex-shrink:0;transition:all .15s}
+.st-btn:hover{background:var(--accent-soft);color:var(--text)}
+.st-btn.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.st-close{width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:var(--text-sec);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .st-close:hover{background:var(--accent-soft);color:var(--text)}
+
+/* 浮动工具条：划词翻译结果面板 */
+.st-trans-panel{display:none;flex-direction:column;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:.82rem;line-height:1.45;animation:transFadeIn .18s ease-out}
+#sel-toolbar.show-trans .st-trans-panel{display:flex}
+@keyframes transFadeIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+.st-trans-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px}
+.st-trans-meta{display:flex;align-items:center;gap:6px;overflow:hidden}
+.st-trans-tag{font-size:.68rem;padding:1px 5px;border-radius:4px;background:var(--accent-soft);color:var(--accent);font-weight:600;flex-shrink:0}
+.st-trans-orig{font-size:.74rem;color:var(--text-sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.st-trans-tools{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.st-trans-tool-btn{width:22px;height:22px;border:0;border-radius:4px;background:transparent;color:var(--text-sec);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.st-trans-tool-btn:hover{background:var(--accent-soft);color:var(--text)}
+.st-trans-body{padding:4px 0 6px;color:var(--text);max-height:160px;overflow-y:auto;word-break:break-word;font-size:.82rem;line-height:1.5}
+.st-trans-loading{color:var(--text-sec);font-style:italic;font-size:.78rem}
+.st-trans-error{color:#d64545;font-size:.78rem;cursor:pointer}
+.st-trans-error:hover{text-decoration:underline}
+.st-trans-actions{display:flex;gap:6px;margin-top:4px;padding-top:6px;border-top:1px dashed var(--border)}
+.st-trans-act{flex:1;padding:5px 8px;border-radius:6px;font:inherit;font-size:.75rem;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;transition:all .15s}
+.st-trans-act:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.st-trans-act.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.st-trans-act.primary:hover{opacity:.9}
 #ant-pop{position:fixed;z-index:300;width:250px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:12px;display:none}
 #ant-pop.show{display:block}
 .ant-pop-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}

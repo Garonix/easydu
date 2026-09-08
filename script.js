@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var S={fileName:'',fileSize:0,fileType:'',rawText:'',chapters:[],currentChapter:0,epubCSS:'',epubTitle:'',toc:null,theme:'light',fontSize:18,lineHeight:1.85,padding:'normal',textColor:'',searchQuery:'',searchResults:[],searchIdx:-1,hiddenShelf:false,librarySort:'recent',storeMode:'inline',convSimp:false,stickyHead:true,pomoMin:25,libraryCat:'__all__',davSyncMode:'auto'};
+var S={fileName:'',fileSize:0,fileType:'',rawText:'',chapters:[],currentChapter:0,epubCSS:'',epubTitle:'',toc:null,theme:'light',fontSize:18,lineHeight:1.85,padding:'normal',textColor:'',searchQuery:'',searchResults:[],searchIdx:-1,hiddenShelf:false,librarySort:'recent',storeMode:'inline',convSimp:false,stickyHead:true,pomoMin:25,libraryCat:'__all__',davSyncMode:'auto',transEnabled:true,transEngine:'auto',transMode:'auto'};
 var _searchToken=0,_tocItems=[],_tocScrollBound=false,_tocItemH=40;
 var $=function(id){return document.getElementById(id)};
 var bookshelf=$('bookshelf'),loading=$('loading'),loadingText=$('loading-text');
@@ -24,7 +24,7 @@ var _pomo=null,_pomoTimer=null;
 var _antPopIdx=-1,_catTarget=null,_selCache=null;
 var POMO_COLORS=['#e05a4e','#d98a1f','#2f9e44','#1d7fd4','#8a5ac1','#c2577a'];
 var POMO_ICON='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>';
-var _selToolbar=null,_stColors=null,_antPop=null,_catPop=null,_catPopList=null;
+var _selToolbar=null,_stColors=null,_antPop=null,_catPop=null,_catPopList=null,_transCache=null,_lastTransText='',_lastTransResult=null;
 var CH_HEADING_GAP=10,BM_OFFSET_TOL=200,SCROLL_BOUND=800,PARA_MAX=4000,SAVE_DELAY=800,PROC_DELAY=30,TOAST_MS=1800,SEARCH_DELAY=200,SNIP_MAX=100,TRIM_WIN=4;
 /* ===== 外部模块桥接（webdav.js / epub.js 提供实现，延迟到运行时解析） ===== */
 var parseEPUB=function(buf,cb){var m=window.EPUB;return m?m.parseEPUB(buf,cb):cb(null,'EPUB 解析器未加载')};
@@ -306,8 +306,8 @@ function generateCoverDataUrl(name){
 }
 
 /* ===== Settings ===== */
-function loadSettings(){try{var d=JSON.parse(localStorage.getItem('jd_s'));if(d){S.theme=d.theme||'light';S.fontSize=d.fs||18;S.lineHeight=d.lh||1.85;S.padding=d.pad||'normal';S.textColor=d.tc||'';S.librarySort=d.bsSort||'recent';S.convSimp=d.convSimp===true;S.stickyHead=d.stickyHead!==false;S.pomoMin=d.pomoMin||25;S.libraryCat=d.bsCat||'__all__';S.davSyncMode=d.davSyncMode||'auto'}}catch(e){}}
-function saveSettings(){try{localStorage.setItem('jd_s',JSON.stringify({theme:S.theme,fs:S.fontSize,lh:S.lineHeight,pad:S.padding,tc:S.textColor||'',bsSort:S.librarySort,convSimp:S.convSimp,stickyHead:S.stickyHead,pomoMin:S.pomoMin,bsCat:S.libraryCat,davSyncMode:S.davSyncMode||'auto'}))}catch(e){}}
+function loadSettings(){try{var d=JSON.parse(localStorage.getItem('jd_s'));if(d){S.theme=d.theme||'light';S.fontSize=d.fs||18;S.lineHeight=d.lh||1.85;S.padding=d.pad||'normal';S.textColor=d.tc||'';S.librarySort=d.bsSort||'recent';S.convSimp=d.convSimp===true;S.stickyHead=d.stickyHead!==false;S.pomoMin=d.pomoMin||25;S.libraryCat=d.bsCat||'__all__';S.davSyncMode=d.davSyncMode||'auto';S.transEnabled=d.transEnabled!==false;S.transEngine=d.transEngine||'auto';S.transMode=d.transMode||'auto'}}catch(e){}}
+function saveSettings(){try{localStorage.setItem('jd_s',JSON.stringify({theme:S.theme,fs:S.fontSize,lh:S.lineHeight,pad:S.padding,tc:S.textColor||'',bsSort:S.librarySort,convSimp:S.convSimp,stickyHead:S.stickyHead,pomoMin:S.pomoMin,bsCat:S.libraryCat,davSyncMode:S.davSyncMode||'auto',transEnabled:S.transEnabled,transEngine:S.transEngine,transMode:S.transMode}))}catch(e){}}
 function loadHiddenShelf(){
   S.hiddenShelf=false;
   try{localStorage.removeItem('jd_hidden_shelf');localStorage.removeItem('jd_privacy')}catch(e){}
@@ -364,7 +364,11 @@ function applySettings(){
   var rp=$('range-pomo'),vp=$('val-pomo');if(rp)rp.value=S.pomoMin;if(vp)vp.textContent=S.pomoMin+' 分钟';
   var ss=$('switch-sticky');if(ss)ss.checked=!!S.stickyHead;
   var selSync=$('select-dav-sync');if(selSync)selSync.value=S.davSyncMode||'auto';
+  var swTr=$('switch-trans');if(swTr)swTr.checked=!!S.transEnabled;
+  var seTr=$('select-trans-engine');if(seTr)seTr.value=S.transEngine||'auto';
+  var smTr=$('select-trans-mode');if(smTr)smTr.value=S.transMode||'auto';
   updateRepSwitch();
+  updateTransUI();
 }
 
 /* ===== Bookshelf UI ===== */
@@ -1606,6 +1610,214 @@ function createAnt(color){
 }
 function clearSelection(){try{window.getSelection().removeAllRanges()}catch(e){}}
 
+/* ===== 划线与译文笔记 ===== */
+function createAntWithNote(color,noteText){
+  var range=_selCache;
+  if(!range){hideSelToolbar();return}
+  var ants=getAnnotations();
+  var overlapIdx=-1;
+  for(var i=0;i<ants.length;i++){
+    if(ants[i].ch===range.ch&&ants[i].start<range.end&&ants[i].end>range.start){
+      overlapIdx=i;break;
+    }
+  }
+  if(overlapIdx>=0){
+    ants[overlapIdx].note=(ants[overlapIdx].note?(ants[overlapIdx].note+'\n'):'')+noteText;
+    ants[overlapIdx].u=Date.now();
+    saveAnnotations(ants);
+    if(reader.classList.contains('active'))rerenderChapterBlock(range.ch);
+    renderAnnotations();
+    hideSelToolbar();clearSelection();_selCache=null;
+    toast('已在划线上追加译文笔记');
+    triggerImmediateSync();
+    return;
+  }
+  var selTxt=textFromRange(range.body,range.start,range.end);
+  ants.push({
+    ch:range.ch,
+    start:range.start,
+    end:range.end,
+    c:color||(POMO_COLORS&&POMO_COLORS[0])||'#ffd54f',
+    note:noteText||'',
+    snip:selTxt.slice(0,60),
+    txt:selTxt,
+    ts:Date.now()
+  });
+  saveAnnotations(ants);
+  hideSelToolbar();clearSelection();_selCache=null;
+  if(reader.classList.contains('active'))rerenderChapterBlock(range.ch);
+  renderAnnotations();
+  toast('已添加划线并保存译文笔记');
+  triggerImmediateSync();
+}
+
+/* ===== 划词翻译核心服务（零 Key、双引擎、本地 LRU 缓存） ===== */
+var _transQuerySeq=0;
+function initTransCache(){
+  if(_transCache)return;
+  try{_transCache=JSON.parse(localStorage.getItem('jd_trans_cache')||'{}')}catch(e){_transCache={}}
+}
+function getTransCache(q){
+  initTransCache();
+  var k=q.trim().toLowerCase();
+  return _transCache[k]||null;
+}
+function setTransCache(q,res){
+  initTransCache();
+  var k=q.trim().toLowerCase();
+  _transCache[k]=Object.assign({},res,{ts:Date.now()});
+  var keys=Object.keys(_transCache);
+  if(keys.length>220){
+    keys.sort(function(a,b){return (_transCache[a].ts||0)-(_transCache[b].ts||0)});
+    for(var i=0;i<keys.length-200;i++)delete _transCache[keys[i]];
+  }
+  try{localStorage.setItem('jd_trans_cache',JSON.stringify(_transCache))}catch(e){}
+}
+function jsonp(url,cbParam,timeoutMs){
+  return new Promise(function(resolve,reject){
+    var cbName='_yd_cb_'+Date.now()+'_'+Math.floor(Math.random()*10000);
+    var script=document.createElement('script');
+    var timer=setTimeout(function(){cleanup();reject(new Error('请求超时'))},timeoutMs||4500);
+    function cleanup(){
+      clearTimeout(timer);
+      if(script.parentNode)script.parentNode.removeChild(script);
+      delete window[cbName];
+    }
+    window[cbName]=function(data){cleanup();resolve(data)};
+    script.onerror=function(){cleanup();reject(new Error('网络连接异常'))};
+    script.src=url+(url.indexOf('?')>=0?'&':'?')+(cbParam||'callback')+'='+cbName;
+    document.head.appendChild(script);
+  });
+}
+function fetchTransGoogle(text,targetLang){
+  var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
+  var tid=ctrl?setTimeout(function(){ctrl.abort()},4500):null;
+  var url='https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl='
+    +encodeURIComponent(targetLang)+'&q='+encodeURIComponent(text);
+  return fetch(url,ctrl?{signal:ctrl.signal}:{}).then(function(r){
+    if(tid)clearTimeout(tid);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.json();
+  }).then(function(data){
+    if(Array.isArray(data)&&data[0]&&data[0][0]){
+      return {text:data[0][0],from:data[0][1]||'auto',to:targetLang,src:'Google'};
+    }
+    throw new Error('未能解析翻译结果');
+  });
+}
+function fetchTransYoudao(text){
+  var url='https://dict.youdao.com/suggest?num=2&doctype=json&q='+encodeURIComponent(text);
+  return jsonp(url,'callback',4500).then(function(data){
+    if(data&&data.result&&data.result.code===200&&data.data&&data.data.entries&&data.data.entries.length){
+      var e=data.data.entries[0];
+      return {text:e.explain||e.entry,from:data.data.language||'en',to:'zh',src:'有道词典',entry:e.entry};
+    }
+    throw new Error('未在词典中查到释义');
+  });
+}
+function queryTranslation(text,forceEngine){
+  var q=text.replace(/([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])/g,'$1$2').replace(/\s+/g,' ').trim();
+  if(!q)return Promise.reject(new Error('内容为空'));
+  var cached=getTransCache(q);
+  if(cached)return Promise.resolve(Object.assign({},cached,{fromCache:true}));
+  var isZh=/[\u4e00-\u9fa5]/.test(q);
+  var targetLang=isZh?'en':'zh-CN';
+  var eng=forceEngine||S.transEngine||'auto';
+
+  if(eng==='google'){
+    return fetchTransGoogle(q,targetLang).then(function(res){
+      setTransCache(q,res);
+      return res;
+    });
+  }
+  if(eng==='youdao'){
+    return fetchTransYoudao(q).then(function(res){
+      setTransCache(q,res);
+      return res;
+    });
+  }
+  /* 智能双引擎：优先 Google，短词在 Google 失败时平滑兜底有道词典 */
+  return fetchTransGoogle(q,targetLang).catch(function(err){
+    if(q.length<=60&&!/[\r\n]/.test(q)){
+      return fetchTransYoudao(q);
+    }
+    throw err;
+  }).then(function(res){
+    setTransCache(q,res);
+    return res;
+  });
+}
+function playTTS(text,lang){
+  if(!('speechSynthesis' in window)){toast('浏览器不支持语音朗读');return}
+  try{
+    window.speechSynthesis.cancel();
+    var u=new SpeechSynthesisUtterance(text);
+    if(lang==='zh'||lang==='zh-CN'||/[\u4e00-\u9fa5]/.test(text)){
+      u.lang='zh-CN';
+    }else{
+      u.lang='en-US';
+    }
+    u.rate=1.0;
+    window.speechSynthesis.speak(u);
+  }catch(e){toast('语音朗读失败')}
+}
+function updateTransUI(){
+  var sep=$('st-trans-sep'),btn=$('st-trans-btn');
+  if(sep)sep.style.display=S.transEnabled?'':'none';
+  if(btn)btn.style.display=S.transEnabled?'inline-flex':'none';
+  if(!S.transEnabled&&_selToolbar){
+    _selToolbar.classList.remove('show-trans');
+    if(btn)btn.classList.remove('active');
+  }
+}
+function repositionSelToolbar(selR){
+  if(!_selToolbar||!_selToolbar.classList.contains('show'))return;
+  if(!selR){
+    try{
+      var sel=window.getSelection();
+      if(sel&&sel.rangeCount)selR=sel.getRangeAt(0).getBoundingClientRect();
+    }catch(e){}
+  }
+  if(!selR)return;
+  var tw=_selToolbar.offsetWidth,th=_selToolbar.offsetHeight;
+  var x=selR.left+(selR.width-tw)/2;
+  x=Math.max(8,Math.min(window.innerWidth-tw-8,x));
+  var y=selR.top-th-10;
+  if(y<8)y=selR.bottom+10;
+  y=Math.max(8,Math.min(window.innerHeight-th-8,y));
+  _selToolbar.style.left=x+'px';
+  _selToolbar.style.top=y+'px';
+}
+function triggerTrans(force){
+  var range=_selCache;
+  if(!range)return;
+  var selTxt=textFromRange(range.body,range.start,range.end).trim();
+  if(!selTxt)return;
+  _lastTransText=selTxt;
+  var origEl=$('st-trans-orig'),bodyEl=$('st-trans-body'),tagEl=$('st-trans-tag');
+  if(origEl)origEl.textContent=selTxt;
+  if(tagEl)tagEl.textContent='翻译';
+  if(bodyEl)bodyEl.innerHTML='<div class="st-trans-loading">正在翻译...</div>';
+  repositionSelToolbar();
+
+  var curSeq=++_transQuerySeq;
+  queryTranslation(selTxt,force?S.transEngine:null).then(function(res){
+    if(curSeq!==_transQuerySeq)return;
+    _lastTransResult=res;
+    var label=(res.fromCache?'缓存 · ':'')+(res.src||'');
+    if(tagEl)tagEl.textContent=label||'翻译';
+    if(bodyEl)bodyEl.textContent=res.text;
+    repositionSelToolbar();
+  }).catch(function(err){
+    if(curSeq!==_transQuerySeq)return;
+    _lastTransResult=null;
+    if(bodyEl){
+      bodyEl.innerHTML='<div class="st-trans-error" id="st-trans-retry">翻译失败，点击重试 ('+esc(err.message||'网络异常')+')</div>';
+    }
+    repositionSelToolbar();
+  });
+}
+
 /* ===== 选区浮动工具条 ===== */
 function initSelToolbar(){
   _selToolbar=$('sel-toolbar');
@@ -1614,12 +1826,48 @@ function initSelToolbar(){
   _stColors.innerHTML=POMO_COLORS.map(function(c){
     return '<button type="button" class="st-color" data-c="'+c+'" title="划线" aria-label="划线" style="background:'+c+'"></button>';
   }).join('');
-  on(_selToolbar,'mousedown',function(e){e.preventDefault()});
+  on(_selToolbar,'mousedown',function(e){
+    if(!e.target.closest('.st-trans-body'))e.preventDefault();
+  });
   on(_stColors,'click',function(e){
     var b=e.target.closest('.st-color');
     if(b)createAnt(b.dataset.c);
   });
+  on($('st-trans-btn'),'click',function(){
+    if(_selToolbar.classList.contains('show-trans')){
+      _selToolbar.classList.remove('show-trans');
+      $('st-trans-btn').classList.remove('active');
+      repositionSelToolbar();
+    }else{
+      _selToolbar.classList.add('show-trans');
+      $('st-trans-btn').classList.add('active');
+      triggerTrans();
+    }
+  });
+  on($('st-trans-tts'),'click',function(){
+    if(_lastTransText)playTTS(_lastTransText,_lastTransResult?_lastTransResult.from:'');
+  });
+  on($('st-trans-copy'),'click',function(){
+    if(_lastTransResult&&_lastTransResult.text){
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(_lastTransResult.text).then(function(){
+          toast('已复制译文');
+        }).catch(function(){toast('复制失败')});
+      }else{toast('复制功能暂不可用')}
+    }
+  });
+  on($('st-trans-note'),'click',function(){
+    if(_lastTransResult&&_lastTransResult.text){
+      createAntWithNote(POMO_COLORS[0],'译文：'+_lastTransResult.text);
+    }
+  });
+  on($('st-trans-body'),'click',function(e){
+    if(e.target.closest('#st-trans-retry')){
+      triggerTrans(true);
+    }
+  });
   on($('st-close'),'click',function(){hideSelToolbar();clearSelection();_selCache=null});
+  updateTransUI();
 }
 function showSelToolbar(){
   var range=getSelAntRange();
@@ -1627,15 +1875,28 @@ function showSelToolbar(){
   _selCache=range;
   var selR=window.getSelection().getRangeAt(0).getBoundingClientRect();
   _selToolbar.classList.add('show');
-  var tw=_selToolbar.offsetWidth,th=_selToolbar.offsetHeight;
-  var x=selR.left+(selR.width-tw)/2;
-  x=Math.max(8,Math.min(window.innerWidth-tw-8,x));
-  var y=selR.top-th-10;
-  if(y<8)y=selR.bottom+10;
-  _selToolbar.style.left=x+'px';
-  _selToolbar.style.top=y+'px';
+
+  var selTxt=textFromRange(range.body,range.start,range.end).trim();
+  _lastTransResult=null;_lastTransText=selTxt;
+  var willAutoTrans=S.transEnabled&&S.transMode==='auto'&&selTxt.length<=300;
+
+  if(willAutoTrans){
+    _selToolbar.classList.add('show-trans');
+    if($('st-trans-btn'))$('st-trans-btn').classList.add('active');
+    triggerTrans();
+  }else{
+    _selToolbar.classList.remove('show-trans');
+    if($('st-trans-btn'))$('st-trans-btn').classList.remove('active');
+  }
+  repositionSelToolbar(selR);
 }
-function hideSelToolbar(){if(_selToolbar)_selToolbar.classList.remove('show')}
+function hideSelToolbar(){
+  if(_selToolbar){
+    _selToolbar.classList.remove('show');
+    _selToolbar.classList.remove('show-trans');
+    if($('st-trans-btn'))$('st-trans-btn').classList.remove('active');
+  }
+}
 
 /* ===== 划线操作弹窗 ===== */
 function initAntPop(){
@@ -2249,6 +2510,23 @@ function setupSettingsEvents(){
   on($('range-pomo'),'input',function(e){S.pomoMin=+e.target.value;saveSettings();var v=$('val-pomo');if(v)v.textContent=S.pomoMin+' 分钟'});
   /* 常驻章节标题开关 */
   on($('switch-sticky'),'change',function(e){S.stickyHead=e.target.checked;applySettings();saveSettings()});
+  /* 划词翻译设置 */
+  on($('switch-trans'),'change',function(e){
+    S.transEnabled=e.target.checked;
+    applySettings();
+    saveSettings();
+    toast(S.transEnabled?'已开启划词翻译':'已关闭划词翻译');
+  });
+  var swTransWrap=$('switch-trans')?$('switch-trans').closest('.switch'):null;
+  if(swTransWrap)on(swTransWrap,'click',function(e){e.stopPropagation()});
+  var selTransEng=$('select-trans-engine');
+  if(selTransEng){
+    on(selTransEng,'change',function(){S.transEngine=selTransEng.value;saveSettings()});
+  }
+  var selTransMode=$('select-trans-mode');
+  if(selTransMode){
+    on(selTransMode,'change',function(){S.transMode=selTransMode.value;saveSettings()});
+  }
   /* WebDAV 关书同步策略 */
   var selSync=$('select-dav-sync');
   if(selSync){
