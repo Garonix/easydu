@@ -223,6 +223,7 @@ function initWebDAVOnBoot(){
     updateStatusUI('unconfigured');
   }
   updateImportMenu();
+  if(isConfigured())setTimeout(syncRemoteCatsIfAvailable,1000);
 }
 
 /* ===== 保存凭据到 localStorage ===== */
@@ -343,6 +344,7 @@ function checkWriteAndPersist(origin,path,user,pass,auth){
         updateStatusUI('readonly','只读连接成功（无写入权限，远端进度同步将受限）。已保存配置。',false);
       }
       window.toast('WebDAV 配置已保存');
+      setTimeout(syncRemoteCatsIfAvailable,500);
     });
   }).catch(function(){
     var saveUrl=(webdavCfgUrl?webdavCfgUrl.value.trim():'')||origin+path;
@@ -353,6 +355,7 @@ function checkWriteAndPersist(origin,path,user,pass,auth){
       webdavAuth=auth;
       updateStatusUI('connected','连接成功，配置已保存。',false);
       window.toast('WebDAV 配置已保存');
+      setTimeout(syncRemoteCatsIfAvailable,500);
     });
   });
 }
@@ -387,6 +390,7 @@ function showWebDAVModal(){
   webdavModal.classList.add('show');
   webdavModal.setAttribute('aria-hidden','false');
   webdavCurrentPath=webdavMountPath||'/';
+  syncRemoteCatsIfAvailable();
   webdavListDir(webdavCurrentPath);
   requestAnimationFrame(function(){
     requestAnimationFrame(function(){
@@ -581,6 +585,28 @@ function webdavDownloadFile(item){
                 localStorage.setItem('jd_rep_'+fname,JSON.stringify(mergedRep));
               }catch(e){}
             }
+            if(remote.cat!==undefined){
+              var lib=window.getLib?window.getLib():[];
+              var cChanged=false;
+              for(var li=0;li<lib.length;li++){
+                if(lib[li].n===fname){
+                  if(lib[li].cat!==remote.cat){
+                    lib[li].cat=remote.cat;
+                    cChanged=true;
+                  }
+                  break;
+                }
+              }
+              if(cChanged){
+                if(window.saveLib)window.saveLib(lib);
+                if(window.renderBookshelf)window.renderBookshelf();
+              }
+            }
+            if(remote.cats&&Array.isArray(remote.cats)&&window.mergeCats){
+              window.mergeCats(remote.cats);
+            }else if(remote.cat&&window.mergeCats){
+              window.mergeCats([{n:remote.cat}]);
+            }
             if(window.S&&window.S.fileName===fname){
               if(window.clearBookCache)window.clearBookCache();
               if(window.renderBookmarks)window.renderBookmarks();
@@ -704,6 +730,30 @@ function davSyncSaveBook(name,payload,opts){
 function davSyncLoadBook(name){return davSyncGet(davSyncBookPath(name))}
 function davSyncDeleteBook(name){return davSyncDelete(davSyncBookPath(name))}
 
+/* 全局书籍标签同步 -> <WebDAV挂载根目录>/.easydu/cats.json */
+function davSyncCatsPath(){return davSyncBasePath()+'/cats.json'}
+function davSyncSaveCats(cats,opts){
+  var path=davSyncCatsPath();
+  return davSyncPut(path,cats,opts).then(function(resp){
+    if(resp&&(resp.status===409||resp.status===404)&&!_davDirEnsured){
+      return davSyncEnsureDir().then(function(){
+        return davSyncPut(path,cats,opts);
+      });
+    }
+    if(resp&&resp.ok)_davDirEnsured=true;
+    return resp;
+  });
+}
+function davSyncLoadCats(){return davSyncGet(davSyncCatsPath())}
+function syncRemoteCatsIfAvailable(){
+  if(!davSyncEnabled())return;
+  davSyncLoadCats().then(function(r){
+    if(r&&r.ok&&r.data&&Array.isArray(r.data)&&window.mergeCats){
+      window.mergeCats(r.data);
+    }
+  }).catch(function(){});
+}
+
 /* ===== 启动初始化 ===== */
 initWebDAVOnBoot();
 
@@ -716,6 +766,9 @@ window.WebDAV={
   syncEnabled:davSyncEnabled,
   syncSaveBook:davSyncSaveBook,
   syncLoadBook:davSyncLoadBook,
-  syncDeleteBook:davSyncDeleteBook
+  syncDeleteBook:davSyncDeleteBook,
+  syncSaveCats:davSyncSaveCats,
+  syncLoadCats:davSyncLoadCats,
+  syncRemoteCats:syncRemoteCatsIfAvailable
 };
 })();

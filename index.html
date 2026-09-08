@@ -133,7 +133,6 @@
     <button type="button" class="color-swatch" data-bg="#e9ebec" title="水墨灰" style="background:#e9ebec"></button>
     <button type="button" class="color-swatch" data-bg="#1a1a1e" title="极夜黑" style="background:#1a1a1e"></button>
   </div></div>
-  <div class="settings-group" data-scope="reader"><div class="settings-label">繁转简<label class="switch" title="将繁体内容转为简体显示"><input type="checkbox" id="switch-conv"><span class="slider"></span></label></div></div>
   <div class="settings-group cat-group" data-scope="shelf">
     <div class="settings-label">书籍标签</div>
     <div class="cat-add"><input type="text" id="cat-input" placeholder="新标签名" maxlength="12" autocomplete="off"><button type="button" id="cat-add-btn">添加</button></div>
@@ -200,6 +199,7 @@
   <div class="settings-group" data-scope="reader">
     <div class="settings-label">常驻章节标题<label class="switch" title="阅读区顶部常驻显示当前章节标题"><input type="checkbox" id="switch-sticky"><span class="slider"></span></label></div>
   </div>
+  <div class="settings-group" data-scope="reader"><div class="settings-label">繁转简<label class="switch" title="将繁体内容转为简体显示"><input type="checkbox" id="switch-conv"><span class="slider"></span></label></div></div>
   <div class="settings-group stats-group" data-scope="reader">
     <div class="settings-label">阅读统计</div>
     <div class="stats-row"><span>本月</span><span id="stats-month">0 分钟</span></div>
@@ -224,7 +224,6 @@
   <div class="st-trans-panel" id="st-trans-panel">
     <div class="st-trans-head">
       <div class="st-trans-meta">
-        <span class="st-trans-tag" id="st-trans-tag">翻译</span>
         <span class="st-trans-orig" id="st-trans-orig"></span>
       </div>
       <div class="st-trans-tools">
@@ -256,7 +255,7 @@
     <div class="ant-pop-colors" id="ant-pop-colors"></div>
     <button type="button" class="ant-pop-close" id="ant-pop-close" aria-label="关闭"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
-  <textarea id="ant-note" placeholder="添加备注（可选）" rows="3"></textarea>
+  <textarea id="ant-note" placeholder="添加批注" rows="3"></textarea>
   <div class="ant-pop-btns">
     <button type="button" class="ant-pop-save" id="ant-pop-save">保存</button>
     <button type="button" class="ant-pop-clear" id="ant-pop-clear">清空</button>
