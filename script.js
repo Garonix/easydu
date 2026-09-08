@@ -1742,15 +1742,25 @@ function jsonp(url,cbParam,timeoutMs){
 function fetchTransGoogle(text,targetLang){
   var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
   var tid=ctrl?setTimeout(function(){ctrl.abort()},4500):null;
-  var url='https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl='
-    +encodeURIComponent(targetLang)+'&q='+encodeURIComponent(text);
+  var url='https://clients5.google.com/translate_a/single?client=dict-chrome-ex&sl=auto&tl='
+    +encodeURIComponent(targetLang)+'&dt=t&dt=rm&q='+encodeURIComponent(text);
   return fetch(url,ctrl?{signal:ctrl.signal}:{}).then(function(r){
     if(tid)clearTimeout(tid);
     if(!r.ok)throw new Error('HTTP '+r.status);
     return r.json();
   }).then(function(data){
-    if(Array.isArray(data)&&data[0]&&data[0][0]){
-      return {text:data[0][0],from:data[0][1]||'auto',to:targetLang,src:'Google'};
+    if(Array.isArray(data)&&Array.isArray(data[0])){
+      var translated='',phonetic='';
+      for(var i=0;i<data[0].length;i++){
+        var part=data[0][i];
+        if(!part)continue;
+        if(typeof part[0]==='string')translated+=part[0];
+        else if(part[0]===null&&typeof part[3]==='string')phonetic=part[3];
+      }
+      if(translated){
+        var fromLang=typeof data[2]==='string'?data[2]:(data[0][0]&&data[0][0][1])||'auto';
+        return {text:translated,from:fromLang,to:targetLang,src:'Google',phonetic:phonetic||''};
+      }
     }
     throw new Error('未能解析翻译结果');
   });
@@ -1760,7 +1770,7 @@ function fetchTransYoudao(text){
   return jsonp(url,'callback',4500).then(function(data){
     if(data&&data.result&&data.result.code===200&&data.data&&data.data.entries&&data.data.entries.length){
       var e=data.data.entries[0];
-      return {text:e.explain||e.entry,from:data.data.language||'en',to:'zh',src:'有道词典',entry:e.entry};
+      return {text:e.explain||e.entry,from:data.data.language||'en',to:'zh',src:'有道词典',entry:e.entry,phonetic:''};
     }
     throw new Error('未在词典中查到释义');
   });
@@ -1858,8 +1868,9 @@ function triggerTrans(force){
   var selTxt=textFromRange(range.body,range.start,range.end).trim();
   if(!selTxt)return;
   _lastTransText=selTxt;
-  var origEl=$('st-trans-orig'),bodyEl=$('st-trans-body');
+  var origEl=$('st-trans-orig'),bodyEl=$('st-trans-body'),phoneticEl=$('st-trans-phonetic');
   if(origEl)origEl.textContent=selTxt;
+  if(phoneticEl){phoneticEl.textContent='';phoneticEl.style.display='none'}
   if(bodyEl)bodyEl.innerHTML='<div class="st-trans-loading">正在翻译...</div>';
   repositionSelToolbar();
 
@@ -1868,10 +1879,21 @@ function triggerTrans(force){
     if(curSeq!==_transQuerySeq)return;
     _lastTransResult=res;
     if(bodyEl)bodyEl.textContent=res.text;
+    if(phoneticEl){
+      if(res&&res.phonetic){
+        var isEn=!/[\u4e00-\u9fa5]/.test(selTxt);
+        phoneticEl.textContent=isEn?('/'+res.phonetic+'/'):res.phonetic;
+        phoneticEl.style.display='';
+      }else{
+        phoneticEl.textContent='';
+        phoneticEl.style.display='none';
+      }
+    }
     repositionSelToolbar();
   }).catch(function(err){
     if(curSeq!==_transQuerySeq)return;
     _lastTransResult=null;
+    if(phoneticEl){phoneticEl.textContent='';phoneticEl.style.display='none'}
     if(bodyEl){
       bodyEl.innerHTML='<div class="st-trans-error" id="st-trans-retry">翻译失败，点击重试 ('+esc(err.message||'网络异常')+')</div>';
     }
