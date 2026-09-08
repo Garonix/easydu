@@ -21,7 +21,7 @@ var coverHues=[25,42,120,175,210,260,330,15,55,150,200,280,350,80,300,10];
 var _hlList=null,_repList=null;
 function clearBookCache(){_hlList=null;_repList=null;_textCache=null;_textCacheLen=0}
 var _pomo=null,_pomoTimer=null;
-var _antPopIdx=-1,_catTarget=null,_selCache=null;
+var _antPopIdx=-1,_antPopSpan=null,_catTarget=null,_selCache=null;
 var POMO_COLORS=['#e05a4e','#d98a1f','#2f9e44','#1d7fd4','#8a5ac1','#c2577a'];
 var POMO_ICON='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>';
 var _selToolbar=null,_stColors=null,_antPop=null,_catPop=null,_catPopList=null,_transCache=null,_lastTransText='',_lastTransResult=null,_transSessionActive=false;
@@ -1952,8 +1952,19 @@ function initAntPop(){
   _antPop=$('ant-pop');
   if(!_antPop)return;
   on($('ant-pop-close'),'click',hideAntPop);
-  on($('ant-pop-del'),'click',deleteAntFromPop);
   on($('ant-pop-save'),'click',saveAntNoteFromPop);
+  on($('ant-pop-clear'),'click',clearAntNoteFromPop);
+  on($('ant-pop-del'),'click',deleteAntFromPop);
+  var colorsEl=$('ant-pop-colors');
+  if(colorsEl){
+    colorsEl.innerHTML=POMO_COLORS.map(function(c){
+      return '<button type="button" class="ant-pop-color" data-c="'+c+'" title="更改颜色" aria-label="更改颜色" style="background:'+c+'"></button>';
+    }).join('');
+    on(colorsEl,'click',function(e){
+      var b=e.target.closest('.ant-pop-color');
+      if(b)changeAntColorFromPop(b.dataset.c);
+    });
+  }
 }
 function showAntPop(span){
   var idx=+span.dataset.i;
@@ -1970,8 +1981,15 @@ function showAntPop(span){
   }
   if(!a)return;
   _antPopIdx=idx;
+  _antPopSpan=span;
   var note=$('ant-note');
   note.value=a.note||'';
+  var colorsEl=$('ant-pop-colors');
+  if(colorsEl){
+    colorsEl.querySelectorAll('.ant-pop-color').forEach(function(el){
+      el.classList.toggle('active',el.dataset.c===a.c);
+    });
+  }
   _antPop.classList.add('show');
   var r=span.getBoundingClientRect();
   var w=_antPop.offsetWidth,h=_antPop.offsetHeight;
@@ -1982,7 +2000,56 @@ function showAntPop(span){
   _antPop.style.left=x+'px';
   _antPop.style.top=y+'px';
 }
-function hideAntPop(){if(_antPop){_antPop.classList.remove('show');_antPopIdx=-1}}
+function hideAntPop(){if(_antPop){_antPop.classList.remove('show');_antPopIdx=-1;_antPopSpan=null}}
+function changeAntColorFromPop(newColor){
+  if(_antPopIdx<0)return;
+  var ants=getAnnotations();
+  var a=ants[_antPopIdx];
+  if(!a)return;
+  a.c=newColor;
+  a.u=Date.now();
+  saveAnnotations(ants);
+  var colorsEl=$('ant-pop-colors');
+  if(colorsEl){
+    colorsEl.querySelectorAll('.ant-pop-color').forEach(function(el){
+      el.classList.toggle('active',el.dataset.c===newColor);
+    });
+  }
+  if(_antPopSpan){
+    _antPopSpan.style.background=newColor;
+  }
+  if(contentInner){
+    contentInner.querySelectorAll('.ant[data-i="'+_antPopIdx+'"]').forEach(function(sp){
+      sp.style.background=newColor;
+    });
+    var effS=a._effStart!==undefined?a._effStart:a.start;
+    contentInner.querySelectorAll('.ant[data-s="'+effS+'"]').forEach(function(sp){
+      sp.style.background=newColor;
+    });
+  }
+  renderAnnotations();
+  triggerImmediateSync();
+  toast('已更改划线颜色');
+}
+function clearAntNoteFromPop(){
+  var note=$('ant-note');
+  if(note)note.value='';
+  if(_antPopIdx>=0){
+    var ants=getAnnotations();
+    var a=ants[_antPopIdx];
+    if(a&&a.note){
+      a.note='';
+      a.u=Date.now();
+      saveAnnotations(ants);
+      renderAnnotations();
+      triggerImmediateSync();
+      toast('备注已清空');
+    }else{
+      toast('内容已清空');
+    }
+  }
+  if(note)note.focus();
+}
 function saveAntNoteFromPop(){
   if(_antPopIdx<0)return;
   var ants=getAnnotations();

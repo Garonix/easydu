@@ -218,7 +218,6 @@
     <div class="st-sep" id="st-trans-sep"></div>
     <button type="button" class="st-btn" id="st-trans-btn" title="划词翻译" aria-label="划词翻译">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
-      <span>译</span>
     </button>
     <button type="button" class="st-close" id="st-close" title="取消"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
@@ -252,11 +251,16 @@
 
 <!-- 划线操作弹窗 -->
 <div id="ant-pop" aria-hidden="true">
-  <div class="ant-pop-head"><b>划线</b><button type="button" class="ant-pop-close" id="ant-pop-close" aria-label="关闭"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="ant-pop-head">
+    <b>批注</b>
+    <div class="ant-pop-colors" id="ant-pop-colors"></div>
+    <button type="button" class="ant-pop-close" id="ant-pop-close" aria-label="关闭"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
   <textarea id="ant-note" placeholder="添加备注（可选）" rows="3"></textarea>
   <div class="ant-pop-btns">
     <button type="button" class="ant-pop-save" id="ant-pop-save">保存</button>
-    <button type="button" class="ant-pop-del" id="ant-pop-del">删除划线</button>
+    <button type="button" class="ant-pop-clear" id="ant-pop-clear">清空</button>
+    <button type="button" class="ant-pop-del" id="ant-pop-del">删除</button>
   </div>
 </div>
 

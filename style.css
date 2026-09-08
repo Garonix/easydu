@@ -397,7 +397,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .st-color{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:transform .15s}
 .st-color:hover{transform:scale(1.15)}
 .st-sep{width:1px;height:16px;background:var(--border);margin:0 2px;flex-shrink:0}
-.st-btn{height:24px;padding:0 7px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text-sec);cursor:pointer;display:inline-flex;align-items:center;gap:3px;font:inherit;font-size:.76rem;font-weight:600;flex-shrink:0;transition:all .15s}
+.st-btn{width:24px;height:24px;padding:0;border-radius:50%;border:1px solid var(--border);background:var(--bg);color:var(--text-sec);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font:inherit;flex-shrink:0;transition:all .15s}
 .st-btn:hover{border-color:var(--accent);color:var(--accent)}
 .st-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .st-btn.active svg{stroke:#fff}
@@ -424,18 +424,24 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .st-trans-act:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .st-trans-act.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .st-trans-act.primary:hover{opacity:.9}
-#ant-pop{position:fixed;z-index:300;width:250px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:12px;display:none}
+#ant-pop{position:fixed;z-index:300;width:264px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:12px;display:none}
 #ant-pop.show{display:block}
 .ant-pop-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.ant-pop-head b{font-size:.85rem}
+.ant-pop-head b{font-size:.85rem;white-space:nowrap}
+.ant-pop-colors{display:flex;align-items:center;gap:5px;margin:0 6px}
+.ant-pop-color{width:16px;height:16px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:transform .15s,border-color .15s}
+.ant-pop-color:hover{transform:scale(1.22)}
+.ant-pop-color.active{border-color:var(--text);transform:scale(1.2)}
 .ant-pop-close{width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--text-sec);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .ant-pop-close:hover{background:var(--accent-soft);color:var(--text)}
 #ant-note{width:100%;resize:vertical;min-height:64px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;font-size:.82rem;padding:8px;outline:none;box-sizing:border-box}
 #ant-note:focus{border-color:var(--accent)}
-.ant-pop-btns{display:flex;gap:8px;margin-top:10px}
-.ant-pop-btns button{flex:1;padding:7px 0;border-radius:8px;font:inherit;font-size:.8rem;cursor:pointer}
+.ant-pop-btns{display:flex;gap:6px;margin-top:10px}
+.ant-pop-btns button{flex:1;padding:7px 0;border-radius:8px;font:inherit;font-size:.8rem;cursor:pointer;font-weight:600}
 .ant-pop-save{background:var(--accent);color:#fff;border:none}
 .ant-pop-save:hover{opacity:.9}
+.ant-pop-clear{background:transparent;color:var(--text);border:1px solid var(--border)}
+.ant-pop-clear:hover{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
 .ant-pop-del{background:transparent;color:#d64545;border:1px solid rgba(214,69,69,.4)}
 .ant-pop-del:hover{background:rgba(214,69,69,.08)}
 
